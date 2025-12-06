@@ -9,53 +9,34 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-WORKDIR /app
+WORKDIR /build
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy project files needed for installation
+# Copy only what's needed for installation
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
 
-# Install dependencies
-RUN pip install --upgrade pip && \
-    pip install .
+# Install package into a clean prefix (no venv overhead)
+RUN pip install --prefix=/install --no-warn-script-location .
 
-# Production stage
+# Production stage - minimal runtime image
 FROM python:3.12-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
+    PYTHONPATH=/install/lib/python3.12/site-packages \
+    PATH="/install/bin:$PATH"
 
 # Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser
+RUN useradd --create-home --shell /bin/bash --uid 1000 appuser
 
 WORKDIR /app
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-
-# Copy application code
-COPY src/ ./src/
-
-# Change ownership to non-root user
-RUN chown -R appuser:appuser /app
+# Copy installed packages from builder (includes steam_mcp and dependencies)
+COPY --from=builder /install /install
 
 # Switch to non-root user
 USER appuser
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import steam_mcp; print('healthy')" || exit 1
-
-# Default command
-CMD ["python", "-m", "steam_mcp.server"]
+# Default command - run the MCP server
+CMD ["steam-mcp"]

@@ -60,8 +60,12 @@ Dockerfile
 docker-compose*.yml
 .docker/
 
+# CI/CD
+.github/
+
 # Claude
 .claude/
+CLAUDE.md
 
 # Misc
 *.local
