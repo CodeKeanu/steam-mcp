@@ -245,15 +245,46 @@ ruff format src/
 
 ## Docker
 
+### Using Pre-built Image (Recommended)
+
+The easiest way to run the server:
+
 ```bash
-# Build image
-docker build -t steam-mcp .
+# Pull and run with docker compose
+docker compose pull
+docker compose up steam-mcp
+```
 
-# Run with docker-compose
-docker-compose up steam-mcp
+Make sure you have a `.env` file configured (copy from `.env.example`).
 
-# Run development mode with hot reload
-docker-compose --profile dev up steam-mcp-dev
+### Using with Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "steam": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--env-file", "/path/to/steam-mcp/.env",
+        "ghcr.io/codekeanu/steam-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+### Building Locally
+
+```bash
+# Build from source
+docker compose --profile local build
+
+# Run local build
+docker compose --profile local up steam-mcp-local
+
+# Development mode with hot reload
+docker compose --profile dev up steam-mcp-dev
 ```
 
 ## License

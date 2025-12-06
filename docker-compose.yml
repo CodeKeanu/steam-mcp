@@ -1,15 +1,10 @@
-version: '3.8'
-
 services:
   steam-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
+    image: ghcr.io/codekeanu/steam-mcp:latest
     container_name: steam-mcp-server
     restart: unless-stopped
-    environment:
-      - STEAM_API_KEY=${STEAM_API_KEY}
+    env_file:
+      - .env
     # MCP servers communicate via stdio, so we need stdin open
     stdin_open: true
     tty: true
@@ -23,7 +18,21 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  # Development service with hot reload
+  # Local build (use: docker compose --profile local up steam-mcp-local)
+  steam-mcp-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: steam-mcp-local
+    profiles:
+      - local
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+
+  # Development service with volume mount for hot reload
   steam-mcp-dev:
     build:
       context: .
@@ -32,8 +41,8 @@ services:
     container_name: steam-mcp-dev
     profiles:
       - dev
-    environment:
-      - STEAM_API_KEY=${STEAM_API_KEY}
+    env_file:
+      - .env
     volumes:
       - ./src:/app/src:ro
     stdin_open: true
