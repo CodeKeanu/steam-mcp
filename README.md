@@ -4,25 +4,27 @@ A modular [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) serve
 
 ## Features
 
-- **Modular Architecture**: Easily add new Steam API endpoints by creating endpoint modules
-- **Auto-Discovery**: Endpoint modules are automatically discovered and registered
-- **Rate Limiting**: Built-in rate limiting to respect Steam API limits
+- **14 Tools** across 5 Steam API interfaces
+- **"My Profile" Queries**: Set your Steam ID once, use "me" or "my" in queries
+- **Modular Architecture**: Easily add new Steam API endpoints
+- **Auto-Discovery**: Endpoint modules are automatically registered
+- **Rate Limiting**: Built-in rate limiting (10 req/s) to respect Steam API limits
 - **Steam ID Normalization**: Accepts any Steam ID format (SteamID64, vanity URL, etc.)
-- **Error Handling**: Robust error handling with retry logic
 - **Docker Support**: Ready for containerized deployment
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.12+ (or Docker)
 - Steam Web API Key ([Get one here](https://steamcommunity.com/dev/apikey))
+- Your SteamID64 (optional, for "my profile" queries - find it at [steamid.io](https://steamid.io))
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/steam-mcp.git
+git clone https://github.com/CodeKeanu/steam-mcp.git
 cd steam-mcp
 
 # Create virtual environment
@@ -32,17 +34,19 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -e .
 
-# Copy environment file and add your API key
+# Copy environment file and configure
 cp .env.example .env
-# Edit .env and add your STEAM_API_KEY
+# Edit .env and add your STEAM_API_KEY and optionally STEAM_USER_ID
 ```
 
-### Configuration
+## Claude Desktop Configuration
 
 Add the server to your Claude Desktop configuration:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Option 1: Direct Python (recommended for development)
 
 ```json
 {
@@ -50,123 +54,175 @@ Add the server to your Claude Desktop configuration:
     "steam": {
       "command": "steam-mcp",
       "env": {
-        "STEAM_API_KEY": "your_api_key_here"
+        "STEAM_API_KEY": "your_api_key_here",
+        "STEAM_USER_ID": "your_steamid64_here"
       }
     }
   }
 }
 ```
 
-Or with Docker:
+### Option 2: Docker with environment variables
 
 ```json
 {
   "mcpServers": {
     "steam": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "STEAM_API_KEY=your_key", "steam-mcp"]
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "STEAM_API_KEY=your_api_key_here",
+        "-e", "STEAM_USER_ID=your_steamid64_here",
+        "steam-mcp"
+      ]
     }
   }
 }
 ```
 
+### Option 3: Docker with .env file
+
+First, create a `.env` file with your configuration:
+
+```bash
+# .env
+STEAM_API_KEY=your_api_key_here
+STEAM_USER_ID=your_steamid64_here
+```
+
+Then configure Claude Desktop to use it:
+
+```json
+{
+  "mcpServers": {
+    "steam": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--env-file", "/path/to/your/steam-mcp/.env",
+        "steam-mcp"
+      ]
+    }
+  }
+}
+```
+
+> **Note**: Replace `/path/to/your/steam-mcp/.env` with the actual path to your `.env` file.
+
+### Building the Docker Image
+
+Before using Docker options, build the image:
+
+```bash
+docker build -t steam-mcp .
+```
+
 ## Available Tools
 
-### ISteamUser
+### ISteamUser - Player Identity & Profiles
 
 | Tool | Description |
 |------|-------------|
+| `get_my_steam_id` | Get your configured Steam ID (verifies STEAM_USER_ID setup) |
 | `get_player_summary` | Get player profile information |
-| `get_player_summaries` | Get profiles for multiple players |
+| `get_player_summaries` | Get profiles for multiple players (batch) |
 | `resolve_vanity_url` | Convert vanity URL to SteamID64 |
 | `get_friend_list` | Get a player's friend list |
 | `get_player_bans` | Check VAC/game ban status |
 
+### IPlayerService - Game Library & Playtime
+
+| Tool | Description |
+|------|-------------|
+| `get_owned_games` | Get player's game library with playtime |
+| `get_recently_played_games` | Games played in the last 2 weeks |
+| `get_steam_level` | Get player's Steam level |
+
+### ISteamUserStats - Achievements & Stats
+
+| Tool | Description |
+|------|-------------|
+| `get_player_achievements` | Get achievement progress for a game |
+| `get_game_schema` | Get achievement definitions for a game |
+| `get_global_achievement_percentages` | Get rarity percentages (no auth needed) |
+| `get_user_stats_for_game` | Get game-specific statistics |
+
+### ISteamNews - Game News
+
+| Tool | Description |
+|------|-------------|
+| `get_news_for_app` | Get news/patch notes for a game (no auth needed) |
+
+### ISteamApps - App Metadata
+
+| Tool | Description |
+|------|-------------|
+| `get_app_list` | Search Steam apps by name |
+| `check_app_up_to_date` | Check if app version is current |
+| `get_app_details` | Get detailed app info (price, genres, etc.) |
+
+## Example Queries
+
+Once configured with `STEAM_USER_ID`, you can ask Claude:
+
+- "What games do I own?"
+- "Show my recently played games"
+- "What's my Steam level?"
+- "Show my achievements for Counter-Strike 2" (app ID: 730)
+- "What are the rarest achievements in Elden Ring?" (app ID: 1245620)
+- "Get the latest news for Team Fortress 2" (app ID: 440)
+- "Search for games with 'Dark Souls' in the name"
+
+## Configuration
+
+| Environment Variable | Required | Description |
+|---------------------|----------|-------------|
+| `STEAM_API_KEY` | Yes | Your Steam Web API key |
+| `STEAM_USER_ID` | No | Your SteamID64 for "my profile" queries |
+| `STEAM_RATE_LIMIT` | No | Requests per second (default: 10) |
+| `STEAM_TIMEOUT` | No | Request timeout in seconds (default: 30) |
+| `STEAM_MAX_RETRIES` | No | Max retry attempts (default: 3) |
+
 ## Adding New Endpoints
 
-The framework is designed to make adding new endpoints simple. Create a new file in `src/steam_mcp/endpoints/`:
+Create a new file in `src/steam_mcp/endpoints/`:
 
 ```python
-# src/steam_mcp/endpoints/player_service.py
-"""IPlayerService API endpoints."""
-
 from steam_mcp.endpoints import BaseEndpoint, endpoint
 from steam_mcp.utils import normalize_steam_id
 
-
-class IPlayerService(BaseEndpoint):
-    """IPlayerService API endpoints for game library data."""
+class INewInterface(BaseEndpoint):
+    """New Steam API interface."""
 
     @endpoint(
-        name="get_owned_games",
-        description="Get a player's owned games and playtime",
+        name="my_new_tool",
+        description="Description of what this tool does",
         params={
             "steam_id": {
                 "type": "string",
                 "description": "Steam ID in any format",
                 "required": True,
             },
-            "include_free_games": {
-                "type": "boolean",
-                "description": "Include free-to-play games",
-                "default": False,
-                "required": False,
-            },
         },
     )
-    async def get_owned_games(
-        self, steam_id: str, include_free_games: bool = False
-    ) -> str:
+    async def my_new_tool(self, steam_id: str) -> str:
         normalized_id = await normalize_steam_id(steam_id, self.client)
-
-        result = await self.client.get(
-            "IPlayerService",
-            "GetOwnedGames",
-            version=1,
-            params={
-                "steamid": normalized_id,
-                "include_appinfo": True,
-                "include_played_free_games": include_free_games,
-            },
-        )
-
-        games = result.get("response", {}).get("games", [])
-        # Format and return result...
-        return f"Found {len(games)} games"
+        result = await self.client.get("INewInterface", "Method", version=1, params={...})
+        return "Formatted result"
 ```
 
-That's it! The endpoint is automatically discovered and registered.
+The endpoint is automatically discovered and registered - no other changes needed.
 
-## Architecture
+## Steam ID Formats
 
-```
-steam-mcp/
-├── src/steam_mcp/
-│   ├── __init__.py
-│   ├── server.py              # MCP server entry point
-│   ├── client/
-│   │   ├── __init__.py
-│   │   └── steam_client.py    # HTTP client with rate limiting
-│   ├── endpoints/
-│   │   ├── __init__.py
-│   │   ├── base.py            # BaseEndpoint and @endpoint decorator
-│   │   └── steam_user.py      # ISteamUser endpoints (example)
-│   └── utils/
-│       ├── __init__.py
-│       └── steam_id.py        # Steam ID normalization
-├── tests/
-├── pyproject.toml
-├── Dockerfile
-└── docker-compose.yml
-```
+The server accepts any Steam ID format:
 
-### Key Components
-
-- **BaseEndpoint**: Abstract base class for endpoint modules
-- **@endpoint decorator**: Registers methods as MCP tools
-- **EndpointRegistry**: Auto-discovers and manages all tools
-- **SteamClient**: HTTP client with rate limiting and error handling
-- **normalize_steam_id**: Handles all Steam ID formats
+- **SteamID64**: `76561198000000000`
+- **SteamID**: `STEAM_0:0:19867136`
+- **SteamID3**: `[U:1:39734272]`
+- **Vanity URL**: `https://steamcommunity.com/id/username`
+- **Profile URL**: `https://steamcommunity.com/profiles/76561198000000000`
+- **Vanity name**: `username`
 
 ## Development
 
@@ -199,18 +255,6 @@ docker-compose up steam-mcp
 # Run development mode with hot reload
 docker-compose --profile dev up steam-mcp-dev
 ```
-
-## Steam ID Formats
-
-The server accepts any Steam ID format:
-
-- **SteamID64**: `76561198000000000`
-- **SteamID32**: `39734272`
-- **SteamID**: `STEAM_0:0:19867136`
-- **SteamID3**: `[U:1:39734272]`
-- **Vanity URL**: `https://steamcommunity.com/id/username`
-- **Profile URL**: `https://steamcommunity.com/profiles/76561198000000000`
-- **Vanity name**: `username`
 
 ## License
 
