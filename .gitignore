@@ -86,3 +86,6 @@ Thumbs.db
 # Local development
 *.local
 .env.local
+
+# AI assistant context (project-specific, not needed in public repo)
+CLAUDE.md
