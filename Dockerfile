@@ -20,8 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy project files needed for installation
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+
 # Install dependencies
-COPY pyproject.toml .
 RUN pip install --upgrade pip && \
     pip install .
 
