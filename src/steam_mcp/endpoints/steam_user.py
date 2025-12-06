@@ -20,6 +20,27 @@ MAX_FRIENDS_DISPLAY = 50
 class ISteamUser(BaseEndpoint):
     """ISteamUser API endpoints for player identity and profile data."""
 
+    async def _resolve_steam_id(self, steam_id: str) -> str:
+        """
+        Resolve steam_id, handling 'me'/'my' shortcuts.
+
+        Returns:
+            Normalized SteamID64 or error message starting with "Error"
+        """
+        steam_id_lower = steam_id.strip().lower()
+        if steam_id_lower in ("me", "my", "myself", "mine"):
+            if not self.client.owner_steam_id:
+                return (
+                    "Error: No owner Steam ID configured. "
+                    "Set STEAM_USER_ID environment variable to use 'me'/'my' shortcuts."
+                )
+            return self.client.owner_steam_id
+
+        try:
+            return await normalize_steam_id(steam_id, self.client)
+        except SteamIDError as e:
+            return f"Error resolving Steam ID: {e}"
+
     @endpoint(
         name="get_my_steam_id",
         description=(
@@ -75,7 +96,8 @@ class ISteamUser(BaseEndpoint):
                 "description": (
                     "Steam ID in any format: SteamID64 (76561198000000000), "
                     "vanity URL (https://steamcommunity.com/id/username), "
-                    "profile URL, or just the vanity name."
+                    "profile URL, or just the vanity name. Use 'me' or 'my' to query "
+                    "your own profile (requires STEAM_USER_ID to be configured)."
                 ),
                 "required": True,
             },
@@ -83,10 +105,9 @@ class ISteamUser(BaseEndpoint):
     )
     async def get_player_summary(self, steam_id: str) -> str:
         """Get player summary for a Steam user."""
-        try:
-            normalized_id = await normalize_steam_id(steam_id, self.client)
-        except SteamIDError as e:
-            return f"Error resolving Steam ID: {e}"
+        normalized_id = await self._resolve_steam_id(steam_id)
+        if normalized_id.startswith("Error"):
+            return normalized_id
 
         players = await self.client.get_player_summaries([normalized_id])
 
@@ -194,17 +215,18 @@ class ISteamUser(BaseEndpoint):
         params={
             "steam_id": {
                 "type": "string",
-                "description": "Steam ID in any format",
+                "description": (
+                    "Steam ID in any format. Use 'me' or 'my' to query your own profile."
+                ),
                 "required": True,
             },
         },
     )
     async def get_friend_list(self, steam_id: str) -> str:
         """Get friend list for a Steam user."""
-        try:
-            normalized_id = await normalize_steam_id(steam_id, self.client)
-        except SteamIDError as e:
-            return f"Error resolving Steam ID: {e}"
+        normalized_id = await self._resolve_steam_id(steam_id)
+        if normalized_id.startswith("Error"):
+            return normalized_id
 
         try:
             result = await self.client.get(

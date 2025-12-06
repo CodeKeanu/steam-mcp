@@ -13,8 +13,8 @@ from steam_mcp.endpoints.base import BaseEndpoint, endpoint
 from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
 
-# Maximum games to display in detailed output
-MAX_GAMES_DISPLAY = 25
+# Default games to display in detailed output
+DEFAULT_GAMES_DISPLAY = 25
 
 
 class IPlayerService(BaseEndpoint):
@@ -49,6 +49,13 @@ class IPlayerService(BaseEndpoint):
                 "default": "playtime",
                 "enum": ["playtime", "name", "recent"],
             },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of games to display in output. Use 0 for all games. Default is 25.",
+                "required": False,
+                "default": 25,
+                "minimum": 0,
+            },
         },
     )
     async def get_owned_games(
@@ -56,6 +63,7 @@ class IPlayerService(BaseEndpoint):
         steam_id: str,
         include_free_games: bool = True,
         sort_by: str = "playtime",
+        limit: int = 25,
     ) -> str:
         """Get owned games for a Steam user."""
         # Handle "me" / "my" shortcut
@@ -96,16 +104,23 @@ class IPlayerService(BaseEndpoint):
         total_minutes = sum(g.get("playtime_forever", 0) for g in games)
         total_hours = total_minutes / 60
 
+        # Determine display limit (0 = show all)
+        display_limit = limit if limit > 0 else len(games)
+
         output = [
             f"Game Library for {normalized_id}",
             f"Total Games: {game_count}",
             f"Total Playtime: {total_hours:,.1f} hours",
             "",
-            f"Top {min(MAX_GAMES_DISPLAY, len(games))} games (sorted by {sort_by}):",
-            "",
         ]
 
-        for game in games[:MAX_GAMES_DISPLAY]:
+        if display_limit < len(games):
+            output.append(f"Top {display_limit} games (sorted by {sort_by}):")
+        else:
+            output.append(f"All games (sorted by {sort_by}):")
+        output.append("")
+
+        for game in games[:display_limit]:
             name = game.get("name", f"App {game.get('appid', 'Unknown')}")
             appid = game.get("appid", "?")
             playtime_mins = game.get("playtime_forever", 0)
@@ -131,8 +146,8 @@ class IPlayerService(BaseEndpoint):
 
             output.append(f"  [{appid}] {name}: {playtime_str}{recent_str}")
 
-        if len(games) > MAX_GAMES_DISPLAY:
-            output.append(f"\n  ... and {len(games) - MAX_GAMES_DISPLAY} more games")
+        if len(games) > display_limit:
+            output.append(f"\n  ... and {len(games) - display_limit} more games")
 
         return "\n".join(output)
 

@@ -86,6 +86,16 @@ class ISteamUserStats(BaseEndpoint):
                 "The game may not have achievements or the profile is private."
             )
 
+        # Verify the Steam ID matches (detect misrouted responses)
+        response_steamid = playerstats.get("steamID")
+        if response_steamid and response_steamid != normalized_id:
+            return (
+                f"Error: Steam API returned data for wrong player.\n"
+                f"Requested: {normalized_id}\n"
+                f"Received: {response_steamid}\n"
+                "This may be a Steam API issue. Please try again."
+            )
+
         game_name = playerstats.get("gameName", f"App {app_id}")
         achievements = playerstats.get("achievements", [])
 
@@ -361,6 +371,24 @@ class ISteamUserStats(BaseEndpoint):
             return (
                 f"No stats found for App ID {app_id}.\n"
                 "The game may not track stats or the profile is private."
+            )
+
+        # Check for error in response (Steam API quirk)
+        if playerstats.get("error"):
+            error_msg = playerstats.get("error", "Unknown error")
+            return (
+                f"Cannot retrieve stats for App ID {app_id}: {error_msg}\n"
+                "The player may not own this game or the profile is private."
+            )
+
+        # Verify the Steam ID matches (detect misrouted responses)
+        response_steamid = playerstats.get("steamID")
+        if response_steamid and response_steamid != normalized_id:
+            return (
+                f"Error: Steam API returned data for wrong player.\n"
+                f"Requested: {normalized_id}\n"
+                f"Received: {response_steamid}\n"
+                "This may be a Steam API issue. Please try again."
             )
 
         game_name = playerstats.get("gameName", f"App {app_id}")
