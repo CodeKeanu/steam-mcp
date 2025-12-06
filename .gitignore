@@ -89,3 +89,4 @@ Thumbs.db
 
 # AI assistant context (project-specific, not needed in public repo)
 CLAUDE.md
+.claude/
