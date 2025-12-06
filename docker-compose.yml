@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  steam-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: steam-mcp-server
+    restart: unless-stopped
+    environment:
+      - STEAM_API_KEY=${STEAM_API_KEY}
+    # MCP servers communicate via stdio, so we need stdin open
+    stdin_open: true
+    tty: true
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # Development service with hot reload
+  steam-mcp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: steam-mcp-dev
+    profiles:
+      - dev
+    environment:
+      - STEAM_API_KEY=${STEAM_API_KEY}
+    volumes:
+      - ./src:/app/src:ro
+    stdin_open: true
+    tty: true
