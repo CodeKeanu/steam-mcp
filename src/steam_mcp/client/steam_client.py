@@ -73,6 +73,7 @@ class SteamClient:
     def __init__(
         self,
         api_key: str | None = None,
+        owner_steam_id: str | None = None,
         requests_per_second: float = 10.0,
         max_retries: int = 3,
         timeout: float = 30.0,
@@ -82,6 +83,8 @@ class SteamClient:
 
         Args:
             api_key: Steam Web API key. If not provided, reads from STEAM_API_KEY env var.
+            owner_steam_id: SteamID64 of the API key owner. If not provided, reads from
+                           STEAM_USER_ID env var. This enables "get my profile" style queries.
             requests_per_second: Rate limit for API requests.
             max_retries: Maximum number of retry attempts for failed requests.
             timeout: Request timeout in seconds.
@@ -89,6 +92,9 @@ class SteamClient:
         self.api_key = api_key or os.getenv("STEAM_API_KEY")
         if not self.api_key:
             raise ValueError("STEAM_API_KEY must be provided or set in environment")
+
+        # Owner Steam ID is optional but enables convenient "my profile" queries
+        self.owner_steam_id = owner_steam_id or os.getenv("STEAM_USER_ID")
 
         self.max_retries = max_retries
         self.timeout = timeout

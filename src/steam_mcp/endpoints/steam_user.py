@@ -21,6 +21,48 @@ class ISteamUser(BaseEndpoint):
     """ISteamUser API endpoints for player identity and profile data."""
 
     @endpoint(
+        name="get_my_steam_id",
+        description=(
+            "Get the Steam ID of the API key owner. This returns the SteamID64 "
+            "configured for this MCP server, allowing queries like 'show my profile' "
+            "or 'what games do I own' without needing to specify a Steam ID."
+        ),
+        params={},
+    )
+    async def get_my_steam_id(self) -> str:
+        """Get the configured owner Steam ID."""
+        if not self.client.owner_steam_id:
+            return (
+                "No owner Steam ID configured. To enable 'my profile' queries, "
+                "set the STEAM_USER_ID environment variable to your SteamID64.\n\n"
+                "You can find your SteamID64 by:\n"
+                "1. Using the resolve_vanity_url tool with your profile name\n"
+                "2. Visiting https://steamid.io and entering your profile URL"
+            )
+
+        owner_id = self.client.owner_steam_id
+
+        # Fetch profile info to provide a richer response
+        players = await self.client.get_player_summaries([owner_id])
+
+        if players:
+            player = players[0]
+            persona_name = player.get("personaname", "Unknown")
+            profile_url = player.get("profileurl", "")
+            return (
+                f"Owner Steam ID configured:\n"
+                f"  Display Name: {persona_name}\n"
+                f"  SteamID64: {owner_id}\n"
+                f"  Profile URL: {profile_url}\n\n"
+                "You can now use 'my Steam ID' or reference this ID for other queries."
+            )
+        else:
+            return (
+                f"Owner Steam ID: {owner_id}\n"
+                "(Could not fetch profile details - ID may be invalid)"
+            )
+
+    @endpoint(
         name="get_player_summary",
         description=(
             "Get Steam player profile information including display name, avatar, "
