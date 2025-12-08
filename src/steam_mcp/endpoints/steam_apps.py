@@ -313,13 +313,15 @@ class ISteamApps(BaseEndpoint):
     @endpoint(
         name="get_similar_games",
         description=(
-            "Get game recommendations similar to a given game based on shared tags and genres. "
+            "Get game recommendations similar to one or more games based on shared tags and genres. "
+            "Accepts multiple app IDs to find games matching all of them. "
             "Useful for finding games like ones you already enjoy."
         ),
         params={
-            "app_id": {
-                "type": "integer",
-                "description": "Steam App ID of the game to find similar games for",
+            "app_ids": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "List of Steam App IDs to find similar games for",
                 "required": True,
             },
             "max_results": {
@@ -334,32 +336,58 @@ class ISteamApps(BaseEndpoint):
     )
     async def get_similar_games(
         self,
-        app_id: int,
+        app_ids: list[int],
         max_results: int = 10,
     ) -> str:
         """Get similar game recommendations based on tags and genres."""
-        # Step 1: Get source game details
-        try:
-            source_result = await self.client.get_store_api(
-                "appdetails",
-                params={"appids": str(app_id), "l": "english"},
+        if not app_ids:
+            return "Error: At least one app ID is required."
+
+        # Deduplicate and validate
+        app_ids = list(dict.fromkeys(app_ids))
+        max_results = max(1, min(max_results, 25))
+
+        # Step 1: Fetch all source games in parallel
+        async def fetch_source(appid: int) -> tuple[int, dict[str, Any] | None]:
+            try:
+                result = await self.client.get_store_api(
+                    "appdetails",
+                    params={"appids": str(appid), "l": "english"},
+                )
+                data = result.get(str(appid), {})
+                if data.get("success"):
+                    return (appid, data.get("data", {}))
+            except Exception:
+                pass
+            return (appid, None)
+
+        source_results = await asyncio.gather(*[fetch_source(aid) for aid in app_ids])
+
+        # Collect genres/categories from all valid source games
+        source_genres: set[str] = set()
+        source_categories: set[str] = set()
+        source_names: list[str] = []
+        source_app_ids: set[int] = set()
+        failed_ids: list[int] = []
+
+        for appid, data in source_results:
+            if not data:
+                failed_ids.append(appid)
+                continue
+            source_app_ids.add(appid)
+            source_names.append(data.get("name", f"App {appid}"))
+            source_genres.update(
+                g.get("id") for g in data.get("genres", []) if g.get("id")
             )
-        except Exception as e:
-            return f"Error fetching game details: {e}"
+            source_categories.update(
+                c.get("id") for c in data.get("categories", []) if c.get("id")
+            )
 
-        source_data = source_result.get(str(app_id), {})
-        if not source_data.get("success", False):
-            return f"App ID {app_id} not found."
-
-        data = source_data.get("data", {})
-        source_name = data.get("name", f"App {app_id}")
-
-        # Extract genres and categories as tags for matching
-        source_genres = {g.get("id") for g in data.get("genres", []) if g.get("id")}
-        source_categories = {c.get("id") for c in data.get("categories", []) if c.get("id")}
+        if not source_names:
+            return f"None of the provided app IDs could be found: {app_ids}"
 
         if not source_genres:
-            return f"No genre data available for '{source_name}' to find similar games."
+            return f"No genre data available for {source_names} to find similar games."
 
         # Step 2: Get a batch of games to compare
         try:
@@ -384,8 +412,8 @@ class ISteamApps(BaseEndpoint):
             return "Could not fetch game catalog."
 
         # Step 3: Fetch details for candidates in parallel batches
-        # Filter to reasonable candidates first (exclude source game)
-        candidates = [a for a in candidate_apps if a.get("appid") != app_id][:500]
+        # Filter to reasonable candidates first (exclude source games)
+        candidates = [a for a in candidate_apps if a.get("appid") not in source_app_ids][:500]
 
         # Fetch details in batches of 50 (Store API limit)
         async def fetch_app_details(appid: int) -> dict[str, Any] | None:
@@ -433,16 +461,18 @@ class ISteamApps(BaseEndpoint):
                 break
 
         if not scored_games:
-            return f"No similar games found for '{source_name}'."
+            return f"No similar games found for: {', '.join(source_names)}"
 
         # Sort by score descending
         scored_games.sort(key=lambda x: x[0], reverse=True)
 
         # Format output
-        output = [
-            f"Games similar to '{source_name}':",
-            "",
-        ]
+        if len(source_names) == 1:
+            header = f"Games similar to '{source_names[0]}':"
+        else:
+            header = f"Games similar to: {', '.join(source_names)}"
+
+        output = [header, ""]
 
         for score, game in scored_games[:max_results]:
             name = game.get("name", "Unknown")
@@ -468,6 +498,12 @@ class ISteamApps(BaseEndpoint):
             output.append(line)
 
         output.append("")
-        output.append(f"Based on shared genres with '{source_name}'")
+        if len(source_names) == 1:
+            output.append(f"Based on shared genres with '{source_names[0]}'")
+        else:
+            output.append(f"Based on shared genres across {len(source_names)} games")
+
+        if failed_ids:
+            output.append(f"Note: Could not find app IDs: {failed_ids}")
 
         return "\n".join(output)
