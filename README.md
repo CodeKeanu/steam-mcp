@@ -11,7 +11,7 @@ Once set up, you can ask Claude things like:
 - "How many hours have I played this week?"
 - "What's the latest news for Team Fortress 2?"
 
-The server includes 17 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
+The server includes 18 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
 
 ---
 
@@ -214,6 +214,7 @@ No registration needed - just drop in the file and restart.
 |------|--------------|
 | `get_app_list` | Search for games by name |
 | `get_app_details` | Game details (price, description, etc.) |
+| `get_full_game_details` | Comprehensive game info (details, reviews, players, achievements, news) in one call |
 | `get_similar_games` | Find games similar to ones you like |
 | `get_game_reviews` | User reviews with Steam ratings and sample text |
 | `check_app_up_to_date` | Check if a game version is current |

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.0] - 2025-12-08
+
+### Added
+- **Aggregate Game Details Tool** (`get_full_game_details`)
+  - Comprehensive game information in a single API call
+  - Combines: app details, user reviews, current player count, achievement statistics, and recent news
+  - Configurable sections: toggle reviews, achievements, or news
+  - Adjustable sample sizes for reviews (1-5) and news items (1-5)
+  - Parallel API fetching for optimal performance
+  - Graceful handling of partial API failures
+  - Type-safe dataclasses for internal data structures
+
+### Changed
+- Tool count increased from 17 to 18
+
 ## [v0.4.0] - 2025-12-08
 
 ### Added
@@ -103,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.2.1...v0.3.0

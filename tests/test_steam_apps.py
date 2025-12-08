@@ -1,4 +1,4 @@
-"""Tests for ISteamApps endpoints - get_similar_games and get_game_reviews."""
+"""Tests for ISteamApps endpoints - get_similar_games, get_game_reviews, get_full_game_details."""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -458,3 +458,354 @@ class TestGetGameReviews:
         assert "App 440" in result
         assert "Very Positive" in result
         assert "Could not fetch reviews for app IDs: [99999]" in result
+
+
+class TestGetFullGameDetails:
+    """Tests for get_full_game_details aggregate endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_app_not_found(self, steam_apps, mock_client):
+        """Should return error when app details cannot be fetched."""
+        mock_client.get_store_api.return_value = {
+            "12345": {"success": False}
+        }
+        mock_client.get.return_value = {"response": {}}
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(app_id=12345)
+
+        assert "Could not fetch details for App ID 12345" in result
+
+    @pytest.mark.asyncio
+    async def test_returns_basic_info_section(self, steam_apps, mock_client):
+        """Should include basic info section with app details."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Team Fortress 2",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "short_description": "A team-based multiplayer shooter.",
+                    "developers": ["Valve"],
+                    "publishers": ["Valve"],
+                    "release_date": {"coming_soon": False, "date": "Oct 10, 2007"},
+                    "platforms": {"windows": True, "mac": True, "linux": True},
+                    "genres": [{"description": "Action"}, {"description": "Free to Play"}],
+                    "categories": [{"description": "Multi-player"}],
+                },
+            }
+        }
+        mock_client.get.return_value = {"response": {"result": 1, "player_count": 50000}}
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(
+            app_id=440,
+            include_reviews=False,
+            include_achievements=False,
+            include_news=False,
+        )
+
+        assert "Team Fortress 2" in result
+        assert "BASIC INFO" in result
+        assert "App ID: 440" in result
+        assert "Valve" in result
+        assert "Free to Play" in result
+        assert "Windows" in result
+
+    @pytest.mark.asyncio
+    async def test_includes_player_count(self, steam_apps, mock_client):
+        """Should include current player count section."""
+        mock_client.get_store_api.return_value = {
+            "730": {
+                "success": True,
+                "data": {
+                    "name": "Counter-Strike 2",
+                    "steam_appid": 730,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": ["Valve"],
+                    "publishers": ["Valve"],
+                    "release_date": {"coming_soon": False, "date": "Aug 21, 2012"},
+                    "platforms": {"windows": True, "mac": False, "linux": True},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.return_value = {
+            "response": {"result": 1, "player_count": 1234567}
+        }
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(
+            app_id=730,
+            include_reviews=False,
+            include_achievements=False,
+            include_news=False,
+        )
+
+        assert "CURRENT PLAYERS" in result
+        assert "1,234,567 playing now" in result
+
+    @pytest.mark.asyncio
+    async def test_includes_reviews_section(self, steam_apps, mock_client):
+        """Should include reviews section when enabled."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Team Fortress 2",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": [],
+                    "publishers": [],
+                    "release_date": {},
+                    "platforms": {},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.return_value = {"response": {}}
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 1000000,
+                "total_positive": 950000,
+                "total_negative": 50000,
+                "review_score_desc": "Overwhelmingly Positive",
+            },
+            "reviews": [
+                {
+                    "voted_up": True,
+                    "review": "Best game ever!",
+                    "votes_up": 100,
+                    "author": {"playtime_forever": 6000},
+                },
+            ],
+        })
+
+        result = await steam_apps.get_full_game_details(
+            app_id=440,
+            include_reviews=True,
+            include_achievements=False,
+            include_news=False,
+        )
+
+        assert "USER REVIEWS" in result
+        assert "Overwhelmingly Positive" in result
+        assert "1,000,000 reviews" in result
+        assert "95% positive" in result
+        assert "Sample Reviews:" in result
+
+    @pytest.mark.asyncio
+    async def test_includes_achievements_section(self, steam_apps, mock_client):
+        """Should include achievements section when enabled."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Team Fortress 2",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": [],
+                    "publishers": [],
+                    "release_date": {},
+                    "platforms": {},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.side_effect = [
+            {"response": {}},  # player count
+            {
+                "achievementpercentages": {
+                    "achievements": [
+                        {"name": "Super Rare", "percent": 0.5},
+                        {"name": "Very Rare", "percent": 2.0},
+                        {"name": "Common", "percent": 80.0},
+                        {"name": "Very Common", "percent": 95.0},
+                    ]
+                }
+            },
+        ]
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(
+            app_id=440,
+            include_reviews=False,
+            include_achievements=True,
+            include_news=False,
+        )
+
+        assert "ACHIEVEMENTS" in result
+        assert "Total: 4 achievements" in result
+        assert "Rarest:" in result
+        assert "Super Rare" in result
+        assert "ULTRA RARE" in result
+        assert "Most Common:" in result
+
+    @pytest.mark.asyncio
+    async def test_includes_news_section(self, steam_apps, mock_client):
+        """Should include news section when enabled."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Team Fortress 2",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": [],
+                    "publishers": [],
+                    "release_date": {},
+                    "platforms": {},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.side_effect = [
+            {"response": {}},  # player count
+            {
+                "appnews": {
+                    "newsitems": [
+                        {
+                            "title": "Big Update Coming",
+                            "date": 1702000000,
+                            "contents": "Exciting news about the update!",
+                            "url": "https://example.com/news",
+                        },
+                    ]
+                }
+            },
+        ]
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(
+            app_id=440,
+            include_reviews=False,
+            include_achievements=False,
+            include_news=True,
+        )
+
+        assert "RECENT NEWS" in result
+        assert "Big Update Coming" in result
+
+    @pytest.mark.asyncio
+    async def test_handles_partial_api_failures_gracefully(self, steam_apps, mock_client):
+        """Should still return results when some APIs fail."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Team Fortress 2",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": ["Valve"],
+                    "publishers": ["Valve"],
+                    "release_date": {},
+                    "platforms": {"windows": True},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        # Player count fails, achievements fail, news fails
+        mock_client.get.return_value = {"response": {}}
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(app_id=440)
+
+        # Should still have basic info
+        assert "Team Fortress 2" in result
+        assert "BASIC INFO" in result
+        # Graceful handling of missing data
+        assert "Player count unavailable" in result
+        assert "No review data available" in result
+        assert "No achievement data available" in result
+        assert "No recent news" in result
+
+    @pytest.mark.asyncio
+    async def test_respects_num_sample_reviews_param(self, steam_apps, mock_client):
+        """Should respect the num_sample_reviews parameter."""
+        mock_client.get_store_api.return_value = {
+            "440": {
+                "success": True,
+                "data": {
+                    "name": "Test Game",
+                    "steam_appid": 440,
+                    "type": "game",
+                    "is_free": True,
+                    "developers": [],
+                    "publishers": [],
+                    "release_date": {},
+                    "platforms": {},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.return_value = {"response": {}}
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 100,
+                "total_positive": 80,
+                "total_negative": 20,
+                "review_score_desc": "Positive",
+            },
+            "reviews": [
+                {"voted_up": True, "review": f"Review {i}", "votes_up": 10, "author": {"playtime_forever": 60}}
+                for i in range(10)
+            ],
+        })
+
+        result = await steam_apps.get_full_game_details(
+            app_id=440,
+            include_achievements=False,
+            include_news=False,
+            num_sample_reviews=2,
+        )
+
+        # Check that get_raw was called with num_per_page=2
+        call_args = mock_client.get_raw.call_args
+        assert call_args[1]["params"]["num_per_page"] == 2
+
+    @pytest.mark.asyncio
+    async def test_includes_store_link(self, steam_apps, mock_client):
+        """Should include Steam store link."""
+        mock_client.get_store_api.return_value = {
+            "1234": {
+                "success": True,
+                "data": {
+                    "name": "Test Game",
+                    "steam_appid": 1234,
+                    "type": "game",
+                    "is_free": False,
+                    "developers": [],
+                    "publishers": [],
+                    "release_date": {},
+                    "platforms": {},
+                    "genres": [],
+                    "categories": [],
+                },
+            }
+        }
+        mock_client.get.return_value = {"response": {}}
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_full_game_details(
+            app_id=1234,
+            include_reviews=False,
+            include_achievements=False,
+            include_news=False,
+        )
+
+        assert "https://store.steampowered.com/app/1234" in result
