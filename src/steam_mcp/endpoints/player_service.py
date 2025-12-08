@@ -6,7 +6,7 @@ which handles player game libraries, playtime, badges, and Steam level.
 Reference: https://partner.steamgames.com/doc/webapi/IPlayerService
 """
 
-from datetime import datetime
+import asyncio
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
@@ -307,3 +307,147 @@ class IPlayerService(BaseEndpoint):
             return await normalize_steam_id(steam_id, self.client)
         except SteamIDError as e:
             return f"Error resolving Steam ID: {e}"
+
+    async def _fetch_games_raw(
+        self, steam_id: str, include_free: bool = True
+    ) -> list[dict[str, Any]]:
+        """Fetch raw games list for a Steam ID (internal helper)."""
+        result = await self.client.get(
+            "IPlayerService",
+            "GetOwnedGames",
+            version=1,
+            params={
+                "steamid": steam_id,
+                "include_appinfo": True,
+                "include_played_free_games": include_free,
+            },
+        )
+        return result.get("response", {}).get("games", [])
+
+    @endpoint(
+        name="find_unplayed_games_with_friends",
+        description=(
+            "Find games you and your friends all own but none have played. "
+            "Perfect for finding co-op games to try together."
+        ),
+        params={
+            "my_steam_id": {
+                "type": "string",
+                "description": "Your Steam ID (any format, or 'me')",
+                "required": True,
+            },
+            "friend_steam_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of friend Steam IDs to compare against",
+                "required": True,
+            },
+            "include_free_games": {
+                "type": "boolean",
+                "description": "Include free-to-play games (default: false)",
+                "required": False,
+            },
+        },
+    )
+    async def find_unplayed_games_with_friends(
+        self,
+        my_steam_id: str,
+        friend_steam_ids: list[str],
+        include_free_games: bool = False,
+    ) -> str:
+        """Find games all users own but none have played."""
+        if not friend_steam_ids:
+            return "Error: Provide at least one friend Steam ID"
+
+        # Resolve all Steam IDs
+        my_id = await self._resolve_steam_id(my_steam_id)
+        if my_id.startswith("Error"):
+            return my_id
+
+        friend_ids: list[str] = []
+        errors: list[str] = []
+        for fid in friend_steam_ids:
+            resolved = await self._resolve_steam_id(fid)
+            if resolved.startswith("Error"):
+                errors.append(f"  - {fid}: {resolved}")
+            elif resolved == my_id:
+                errors.append(f"  - {fid}: Cannot compare with yourself")
+            else:
+                friend_ids.append(resolved)
+
+        if not friend_ids:
+            return "Error: No valid friend IDs:\n" + "\n".join(errors)
+
+        # Fetch all libraries in parallel
+        all_ids = [my_id] + friend_ids
+        try:
+            all_games = await asyncio.gather(
+                *[self._fetch_games_raw(sid, include_free_games) for sid in all_ids]
+            )
+        except Exception as e:
+            return f"Error fetching game libraries: {e}"
+
+        my_games = all_games[0]
+        friend_games_list = all_games[1:]
+
+        if not my_games:
+            return f"No games found for your profile ({my_id}). Profile may be private."
+
+        # Build lookup for each friend: {appid: playtime}
+        friend_lookups: list[dict[int, int]] = []
+        for i, games in enumerate(friend_games_list):
+            if not games:
+                errors.append(f"  - {friend_ids[i]}: No games (private profile?)")
+                continue
+            friend_lookups.append({
+                g["appid"]: g.get("playtime_forever", 0) for g in games
+            })
+
+        if not friend_lookups:
+            return "Error: Could not fetch any friend libraries:\n" + "\n".join(errors)
+
+        # Find shared unplayed games
+        shared_unplayed: list[dict[str, Any]] = []
+        for game in my_games:
+            appid = game["appid"]
+            my_playtime = game.get("playtime_forever", 0)
+
+            # Check if ALL friends own this game
+            all_own = all(appid in fl for fl in friend_lookups)
+            if not all_own:
+                continue
+
+            # Check if NOBODY has played (me + all friends)
+            friend_playtimes = [fl[appid] for fl in friend_lookups]
+            if my_playtime == 0 and all(pt == 0 for pt in friend_playtimes):
+                shared_unplayed.append(game)
+
+        # Format output
+        num_friends = len(friend_lookups)
+        output = [f"Comparing your library with {num_friends} friend(s)...", ""]
+
+        if shared_unplayed:
+            shared_unplayed.sort(key=lambda g: g.get("name", "").lower())
+            output.append(f"Found {len(shared_unplayed)} unplayed games you all own:")
+            output.append("")
+            for game in shared_unplayed[:50]:
+                name = game.get("name", f"App {game['appid']}")
+                output.append(f"  [{game['appid']}] {name}")
+            if len(shared_unplayed) > 50:
+                output.append(f"  ... and {len(shared_unplayed) - 50} more")
+        else:
+            # Count shared games for context
+            shared_count = sum(
+                1 for g in my_games
+                if all(g["appid"] in fl for fl in friend_lookups)
+            )
+            output.append("No unplayed shared games found.")
+            output.append(f"  - Games you all own: {shared_count}")
+            output.append("  - All have been played by at least one person")
+
+        if errors:
+            output.append("")
+            output.append("Warnings:")
+            output.extend(errors)
+
+        return "\n".join(output)
