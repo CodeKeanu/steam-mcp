@@ -303,6 +303,36 @@ class SteamClient:
         except httpx.HTTPError as e:
             raise SteamAPIError(f"Store API error: {e}") from e
 
+    async def get_raw(
+        self,
+        url: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Make a GET request to an arbitrary URL (no API key added).
+
+        Args:
+            url: Full URL to request
+            params: Query parameters
+
+        Returns:
+            Parsed JSON response
+
+        Note:
+            Used for Steam endpoints that don't require authentication,
+            like the reviews endpoint.
+        """
+        params = params or {}
+
+        await self.rate_limiter.acquire()
+
+        try:
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            raise SteamAPIError(f"Request error: {e}") from e
+
     # Convenience methods for common operations
 
     async def resolve_vanity_url(self, vanity_name: str) -> str | None:

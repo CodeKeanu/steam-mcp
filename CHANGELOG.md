@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.0] - 2025-12-08
+
+### Added
+- **Game Reviews Tool** (`get_game_reviews`)
+  - Fetch user reviews for one or more Steam games
+  - Three view modes: `summary` (scores only), `standard` (3 reviews), `detailed` (10 reviews)
+  - Steam rating labels (Mostly Positive, Very Positive, etc.)
+  - Review statistics: total count, positive/negative breakdown, percentage
+  - Filter by review type (all/positive/negative) and language
+  - Sample reviews with playtime, helpfulness votes, and recommendation
+- `get_raw()` method added to SteamClient for unauthenticated endpoints
+
+### Changed
+- Tool count increased from 16 to 17
+
 ## [v0.3.1] - 2025-12-08
 
 ### Changed
@@ -88,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.2.1...v0.3.0
 [v0.2.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.2.0...v0.2.1

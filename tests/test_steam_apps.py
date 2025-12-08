@@ -1,4 +1,4 @@
-"""Tests for ISteamApps endpoint - get_similar_games."""
+"""Tests for ISteamApps endpoints - get_similar_games and get_game_reviews."""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -265,3 +265,196 @@ class TestGetSimilarGames:
         result = await steam_apps.get_similar_games(app_ids=[440])
 
         assert "Could not fetch game catalog" in result
+
+
+class TestGetGameReviews:
+    """Tests for get_game_reviews endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_empty_app_ids_returns_error(self, steam_apps):
+        """Empty app_ids list should return error."""
+        result = await steam_apps.get_game_reviews(app_ids=[])
+
+        assert "At least one app ID is required" in result
+
+    @pytest.mark.asyncio
+    async def test_summary_mode_returns_scores_only(self, steam_apps, mock_client):
+        """Summary mode should return only rating and counts."""
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 1000,
+                "total_positive": 850,
+                "total_negative": 150,
+                "review_score_desc": "Very Positive",
+            },
+            "reviews": [],
+        })
+
+        result = await steam_apps.get_game_reviews(app_ids=[440], view_mode="summary")
+
+        assert "Very Positive" in result
+        assert "1,000" in result
+        assert "85% positive" in result
+        assert "Sample Reviews" not in result
+
+    @pytest.mark.asyncio
+    async def test_standard_mode_includes_reviews(self, steam_apps, mock_client):
+        """Standard mode should include sample reviews."""
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 500,
+                "total_positive": 400,
+                "total_negative": 100,
+                "review_score_desc": "Mostly Positive",
+            },
+            "reviews": [
+                {
+                    "voted_up": True,
+                    "review": "Great game!",
+                    "votes_up": 10,
+                    "author": {"playtime_forever": 120},
+                },
+                {
+                    "voted_up": False,
+                    "review": "Not for me.",
+                    "votes_up": 5,
+                    "author": {"playtime_forever": 60},
+                },
+            ],
+        })
+
+        result = await steam_apps.get_game_reviews(app_ids=[440], view_mode="standard")
+
+        assert "Mostly Positive" in result
+        assert "Sample Reviews" in result
+        assert "Recommended" in result
+        assert "Great game!" in result
+
+    @pytest.mark.asyncio
+    async def test_detailed_mode_shows_more_text(self, steam_apps, mock_client):
+        """Detailed mode should show more review text."""
+        long_review = "A" * 400  # 400 chars
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 100,
+                "total_positive": 90,
+                "total_negative": 10,
+                "review_score_desc": "Very Positive",
+            },
+            "reviews": [
+                {
+                    "voted_up": True,
+                    "review": long_review,
+                    "votes_up": 50,
+                    "author": {"playtime_forever": 600},
+                },
+            ],
+        })
+
+        # Standard mode truncates at 200 chars
+        result_standard = await steam_apps.get_game_reviews(
+            app_ids=[440], view_mode="standard"
+        )
+        # Detailed mode allows up to 500 chars
+        result_detailed = await steam_apps.get_game_reviews(
+            app_ids=[440], view_mode="detailed"
+        )
+
+        # Standard should have truncated (200 + "...")
+        assert "..." in result_standard
+        # Detailed should have full text (400 < 500)
+        assert long_review in result_detailed
+
+    @pytest.mark.asyncio
+    async def test_multiple_games(self, steam_apps, mock_client):
+        """Should fetch reviews for multiple games."""
+        mock_client.get_raw = AsyncMock(side_effect=[
+            {
+                "success": 1,
+                "query_summary": {
+                    "total_reviews": 100,
+                    "total_positive": 80,
+                    "total_negative": 20,
+                    "review_score_desc": "Mostly Positive",
+                },
+                "reviews": [],
+            },
+            {
+                "success": 1,
+                "query_summary": {
+                    "total_reviews": 200,
+                    "total_positive": 50,
+                    "total_negative": 150,
+                    "review_score_desc": "Mostly Negative",
+                },
+                "reviews": [],
+            },
+        ])
+
+        result = await steam_apps.get_game_reviews(
+            app_ids=[440, 730], view_mode="summary"
+        )
+
+        assert "App 440" in result
+        assert "App 730" in result
+        assert "Mostly Positive" in result
+        assert "Mostly Negative" in result
+
+    @pytest.mark.asyncio
+    async def test_review_type_filter(self, steam_apps, mock_client):
+        """Should pass review_type filter to API."""
+        mock_client.get_raw = AsyncMock(return_value={
+            "success": 1,
+            "query_summary": {
+                "total_reviews": 50,
+                "total_positive": 0,
+                "total_negative": 50,
+                "review_score_desc": "Negative",
+            },
+            "reviews": [],
+        })
+
+        await steam_apps.get_game_reviews(
+            app_ids=[440], review_type="negative", view_mode="summary"
+        )
+
+        # Verify the call was made with correct params
+        call_args = mock_client.get_raw.call_args
+        assert call_args[1]["params"]["review_type"] == "negative"
+
+    @pytest.mark.asyncio
+    async def test_failed_fetch_reports_error(self, steam_apps, mock_client):
+        """Should report failed app IDs."""
+        mock_client.get_raw = AsyncMock(return_value={"success": 0})
+
+        result = await steam_apps.get_game_reviews(app_ids=[99999], view_mode="summary")
+
+        assert "Could not fetch reviews" in result
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_still_returns_data(self, steam_apps, mock_client):
+        """Should return data for successful fetches even if some fail."""
+        mock_client.get_raw = AsyncMock(side_effect=[
+            {"success": 0},  # First fails
+            {
+                "success": 1,
+                "query_summary": {
+                    "total_reviews": 100,
+                    "total_positive": 90,
+                    "total_negative": 10,
+                    "review_score_desc": "Very Positive",
+                },
+                "reviews": [],
+            },
+        ])
+
+        result = await steam_apps.get_game_reviews(
+            app_ids=[99999, 440], view_mode="summary"
+        )
+
+        assert "App 440" in result
+        assert "Very Positive" in result
+        assert "Could not fetch reviews for app IDs: [99999]" in result

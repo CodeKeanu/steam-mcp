@@ -507,3 +507,170 @@ class ISteamApps(BaseEndpoint):
             output.append(f"Note: Could not find app IDs: {failed_ids}")
 
         return "\n".join(output)
+
+    @endpoint(
+        name="get_game_reviews",
+        description=(
+            "Get user reviews for one or more Steam games. "
+            "Returns review scores (e.g., 'Mostly Positive'), statistics, and sample reviews. "
+            "Supports summary or detailed view modes."
+        ),
+        params={
+            "app_ids": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "List of Steam App IDs to get reviews for",
+                "required": True,
+            },
+            "view_mode": {
+                "type": "string",
+                "enum": ["summary", "standard", "detailed"],
+                "description": (
+                    "Level of detail: 'summary' (scores only), "
+                    "'standard' (scores + 3 reviews), 'detailed' (scores + 10 reviews with full text)"
+                ),
+                "required": False,
+                "default": "standard",
+            },
+            "review_type": {
+                "type": "string",
+                "enum": ["all", "positive", "negative"],
+                "description": "Filter by recommendation type",
+                "required": False,
+                "default": "all",
+            },
+            "language": {
+                "type": "string",
+                "description": "Language filter (e.g., 'english', 'all')",
+                "required": False,
+                "default": "english",
+            },
+        },
+    )
+    async def get_game_reviews(
+        self,
+        app_ids: list[int],
+        view_mode: str = "standard",
+        review_type: str = "all",
+        language: str = "english",
+    ) -> str:
+        """Get user reviews for Steam games."""
+        if not app_ids:
+            return "Error: At least one app ID is required."
+
+        # Deduplicate
+        app_ids = list(dict.fromkeys(app_ids))
+
+        # Validate view_mode
+        valid_modes = ("summary", "standard", "detailed")
+        if view_mode not in valid_modes:
+            view_mode = "standard"
+
+        # Determine number of reviews to fetch based on view mode
+        reviews_per_game = {"summary": 0, "standard": 3, "detailed": 10}[view_mode]
+
+        async def fetch_reviews(appid: int) -> tuple[int, dict[str, Any] | None]:
+            """Fetch reviews for a single app."""
+            try:
+                # Use store API for reviews (no auth required)
+                url = f"https://store.steampowered.com/appreviews/{appid}"
+                params = {
+                    "json": "1",
+                    "filter": "all",  # Sort by helpfulness
+                    "language": language,
+                    "review_type": review_type,
+                    "purchase_type": "all",
+                    "num_per_page": max(1, reviews_per_game),
+                    "filter_offtopic_activity": "1",  # Exclude review bombs
+                }
+                result = await self.client.get_raw(url, params=params)
+                if result.get("success") == 1:
+                    return (appid, result)
+            except Exception:
+                pass
+            return (appid, None)
+
+        # Fetch all reviews in parallel
+        results = await asyncio.gather(*[fetch_reviews(aid) for aid in app_ids])
+
+        output: list[str] = []
+        failed_ids: list[int] = []
+
+        for appid, data in results:
+            if not data:
+                failed_ids.append(appid)
+                continue
+
+            query = data.get("query_summary", {})
+            reviews = data.get("reviews", [])
+
+            # Extract summary stats
+            total_reviews = query.get("total_reviews", 0)
+            total_positive = query.get("total_positive", 0)
+            total_negative = query.get("total_negative", 0)
+            score_desc = query.get("review_score_desc", "No Reviews")
+
+            # Calculate percentage
+            if total_reviews > 0:
+                positive_pct = round((total_positive / total_reviews) * 100)
+            else:
+                positive_pct = 0
+
+            # Game header
+            output.append(f"=== App {appid} ===")
+            output.append(f"Rating: {score_desc}")
+            output.append(f"Reviews: {total_reviews:,} ({positive_pct}% positive)")
+            output.append(f"  Positive: {total_positive:,} | Negative: {total_negative:,}")
+
+            # Add reviews based on view mode
+            if view_mode != "summary" and reviews:
+                output.append("")
+                output.append("Sample Reviews:")
+
+                for i, review in enumerate(reviews[:reviews_per_game]):
+                    author = review.get("author", {})
+                    voted_up = review.get("voted_up", False)
+                    text = review.get("review", "").strip()
+                    votes_up = review.get("votes_up", 0)
+                    playtime = author.get("playtime_forever", 0)
+                    playtime_hrs = round(playtime / 60, 1)
+
+                    # Truncate text based on view mode
+                    if view_mode == "standard":
+                        max_len = 200
+                    else:  # detailed
+                        max_len = 500
+
+                    if len(text) > max_len:
+                        text = text[:max_len].rsplit(" ", 1)[0] + "..."
+
+                    recommendation = "👍 Recommended" if voted_up else "👎 Not Recommended"
+                    output.append(f"  [{i + 1}] {recommendation}")
+                    output.append(f"      Playtime: {playtime_hrs}h | Helpful: {votes_up}")
+
+                    # Format review text with indentation
+                    if text:
+                        # Split into lines for readability
+                        words = text.split()
+                        lines: list[str] = []
+                        current_line = "      "
+                        for word in words:
+                            if len(current_line) + len(word) + 1 > 80:
+                                lines.append(current_line)
+                                current_line = "      " + word
+                            else:
+                                current_line += (" " if current_line.strip() else "") + word
+                        if current_line.strip():
+                            lines.append(current_line)
+                        output.extend(lines)
+                    output.append("")
+
+            output.append("")
+
+        if failed_ids:
+            output.append(f"Note: Could not fetch reviews for app IDs: {failed_ids}")
+
+        if not output or all(aid in failed_ids for aid in app_ids):
+            return f"Could not fetch reviews for any of the provided app IDs: {app_ids}"
+
+        return "\n".join(output).strip()
