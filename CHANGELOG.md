@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.1] - 2025-12-08
+
+### Changed
+- `get_similar_games` now accepts `app_ids: list[int]` instead of single `app_id: int`
+  - Reduces token usage for AI agents querying multiple games
+  - Fetches source games in parallel
+  - Combines genres from all source games for matching
+- Added input deduplication and validation
+
 ## [v0.3.0] - 2025-12-08
 
 ### Added
@@ -79,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.1...HEAD
+[v0.3.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.2.1...v0.3.0
 [v0.2.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.1.0...v0.2.0
