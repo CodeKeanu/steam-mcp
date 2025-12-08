@@ -8,6 +8,7 @@ References:
 - https://partner.steamgames.com/doc/webapi/IStoreService
 """
 
+import asyncio
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
@@ -306,5 +307,167 @@ class ISteamApps(BaseEndpoint):
         # Store URL
         output.append("")
         output.append(f"Store: https://store.steampowered.com/app/{app_id}")
+
+        return "\n".join(output)
+
+    @endpoint(
+        name="get_similar_games",
+        description=(
+            "Get game recommendations similar to a given game based on shared tags and genres. "
+            "Useful for finding games like ones you already enjoy."
+        ),
+        params={
+            "app_id": {
+                "type": "integer",
+                "description": "Steam App ID of the game to find similar games for",
+                "required": True,
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum number of recommendations to return (default: 10)",
+                "required": False,
+                "default": 10,
+                "minimum": 1,
+                "maximum": 25,
+            },
+        },
+    )
+    async def get_similar_games(
+        self,
+        app_id: int,
+        max_results: int = 10,
+    ) -> str:
+        """Get similar game recommendations based on tags and genres."""
+        # Step 1: Get source game details
+        try:
+            source_result = await self.client.get_store_api(
+                "appdetails",
+                params={"appids": str(app_id), "l": "english"},
+            )
+        except Exception as e:
+            return f"Error fetching game details: {e}"
+
+        source_data = source_result.get(str(app_id), {})
+        if not source_data.get("success", False):
+            return f"App ID {app_id} not found."
+
+        data = source_data.get("data", {})
+        source_name = data.get("name", f"App {app_id}")
+
+        # Extract genres and categories as tags for matching
+        source_genres = {g.get("id") for g in data.get("genres", []) if g.get("id")}
+        source_categories = {c.get("id") for c in data.get("categories", []) if c.get("id")}
+
+        if not source_genres:
+            return f"No genre data available for '{source_name}' to find similar games."
+
+        # Step 2: Get a batch of games to compare
+        try:
+            apps_result = await self.client.get(
+                "IStoreService",
+                "GetAppList",
+                version=1,
+                params={
+                    "include_games": True,
+                    "include_dlc": False,
+                    "include_software": False,
+                    "include_videos": False,
+                    "include_hardware": False,
+                    "max_results": 10000,
+                },
+            )
+        except Exception as e:
+            return f"Error fetching app list: {e}"
+
+        candidate_apps = apps_result.get("response", {}).get("apps", [])
+        if not candidate_apps:
+            return "Could not fetch game catalog."
+
+        # Step 3: Fetch details for candidates in parallel batches
+        # Filter to reasonable candidates first (exclude source game)
+        candidates = [a for a in candidate_apps if a.get("appid") != app_id][:500]
+
+        # Fetch details in batches of 50 (Store API limit)
+        async def fetch_app_details(appid: int) -> dict[str, Any] | None:
+            try:
+                result = await self.client.get_store_api(
+                    "appdetails",
+                    params={"appids": str(appid), "l": "english"},
+                )
+                app_data = result.get(str(appid), {})
+                if app_data.get("success"):
+                    return app_data.get("data", {})
+            except Exception:
+                pass
+            return None
+
+        # Score candidates by fetching their details
+        scored_games: list[tuple[int, dict[str, Any]]] = []
+
+        # Fetch in smaller batches to respect rate limits
+        batch_size = 20
+        for i in range(0, min(len(candidates), 200), batch_size):
+            batch = candidates[i : i + batch_size]
+            tasks = [fetch_app_details(c["appid"]) for c in batch]
+            results = await asyncio.gather(*tasks)
+
+            for j, details in enumerate(results):
+                if not details:
+                    continue
+
+                # Calculate similarity score
+                game_genres = {g.get("id") for g in details.get("genres", []) if g.get("id")}
+                game_categories = {c.get("id") for c in details.get("categories", []) if c.get("id")}
+
+                genre_overlap = len(source_genres & game_genres)
+                category_overlap = len(source_categories & game_categories)
+
+                # Weight genres more heavily than categories
+                score = (genre_overlap * 3) + category_overlap
+
+                if score > 0:
+                    scored_games.append((score, details))
+
+            # Stop early if we have enough high-quality matches
+            if len(scored_games) >= max_results * 3:
+                break
+
+        if not scored_games:
+            return f"No similar games found for '{source_name}'."
+
+        # Sort by score descending
+        scored_games.sort(key=lambda x: x[0], reverse=True)
+
+        # Format output
+        output = [
+            f"Games similar to '{source_name}':",
+            "",
+        ]
+
+        for score, game in scored_games[:max_results]:
+            name = game.get("name", "Unknown")
+            gid = game.get("steam_appid", "?")
+            is_free = game.get("is_free", False)
+
+            price_info = game.get("price_overview", {})
+            if is_free:
+                price_str = "Free"
+            elif price_info:
+                price_str = price_info.get("final_formatted", "")
+            else:
+                price_str = ""
+
+            genres = [g.get("description", "") for g in game.get("genres", [])][:3]
+            genre_str = ", ".join(genres) if genres else ""
+
+            line = f"  [{gid}] {name}"
+            if price_str:
+                line += f" - {price_str}"
+            if genre_str:
+                line += f" ({genre_str})"
+            output.append(line)
+
+        output.append("")
+        output.append(f"Based on shared genres with '{source_name}'")
 
         return "\n".join(output)
