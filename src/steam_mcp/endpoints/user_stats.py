@@ -279,7 +279,7 @@ class ISteamUserStats(BaseEndpoint):
         # Sort by percentage (rarest first)
         achievements_sorted = sorted(
             achievements,
-            key=lambda a: a.get("percent", 0)
+            key=lambda a: float(a.get("percent", 0))
         )
 
         output = [
@@ -291,7 +291,7 @@ class ISteamUserStats(BaseEndpoint):
 
         for ach in achievements_sorted[:20]:
             name = ach.get("name", "Unknown")
-            percent = ach.get("percent", 0)
+            percent = float(ach.get("percent", 0))
 
             # Visual rarity indicator
             if percent < 1:
@@ -311,7 +311,7 @@ class ISteamUserStats(BaseEndpoint):
             output.append("Most common achievements:")
             for ach in reversed(achievements_sorted[-5:]):
                 name = ach.get("name", "Unknown")
-                percent = ach.get("percent", 0)
+                percent = float(ach.get("percent", 0))
                 output.append(f"     {percent:5.1f}% - {name}")
 
         return "\n".join(output)

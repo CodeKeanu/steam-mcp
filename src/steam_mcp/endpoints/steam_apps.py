@@ -876,16 +876,18 @@ class ISteamApps(BaseEndpoint):
         if not achievements:
             return None
 
-        # Sort by percentage
-        achievements_sorted = sorted(achievements, key=lambda a: a.get("percent", 0))
+        # Sort by percentage (convert to float as API may return strings)
+        achievements_sorted = sorted(
+            achievements, key=lambda a: float(a.get("percent", 0))
+        )
 
         # Extract rarest and most common
         rarest = [
-            (a.get("name", "Unknown"), round(a.get("percent", 0), 1))
+            (a.get("name", "Unknown"), round(float(a.get("percent", 0)), 1))
             for a in achievements_sorted[:5]
         ]
         most_common = [
-            (a.get("name", "Unknown"), round(a.get("percent", 0), 1))
+            (a.get("name", "Unknown"), round(float(a.get("percent", 0)), 1))
             for a in reversed(achievements_sorted[-3:])
         ]
 
