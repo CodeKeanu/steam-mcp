@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.2] - 2025-12-09
+
+### Added
+- Automatic GitHub release workflow on version tags
+- Extracts release notes from CHANGELOG.md
+
+### Fixed
+- Badge URLs now include branch parameter for proper cache busting
+
 ## [v0.5.1] - 2025-12-09
 
 ### Fixed
