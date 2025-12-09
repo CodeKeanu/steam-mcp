@@ -1,5 +1,11 @@
 # Steam MCP Server
 
+[![Tests](https://github.com/CodeKeanu/steam-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/CodeKeanu/steam-mcp/actions/workflows/tests.yml)
+[![Docker Build](https://github.com/CodeKeanu/steam-mcp/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/CodeKeanu/steam-mcp/actions/workflows/docker-publish.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/CodeKeanu/steam-mcp)](https://github.com/CodeKeanu/steam-mcp/releases)
+
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that lets AI assistants like Claude talk to the Steam API. Ask about your games, achievements, playtime, and more.
 
 ## What Can It Do?
