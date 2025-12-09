@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "steam-mcp"
-version = "0.5.0"
+version = "0.5.1"
 description = "Steam API integration via Model Context Protocol (MCP)"
 readme = "README.md"
 license = "MIT"
@@ -43,10 +43,10 @@ dev = [
 steam-mcp = "steam_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/steam-mcp"
-Documentation = "https://github.com/yourusername/steam-mcp#readme"
-Repository = "https://github.com/yourusername/steam-mcp"
-Issues = "https://github.com/yourusername/steam-mcp/issues"
+Homepage = "https://github.com/CodeKeanu/steam-mcp"
+Documentation = "https://github.com/CodeKeanu/steam-mcp#readme"
+Repository = "https://github.com/CodeKeanu/steam-mcp"
+Issues = "https://github.com/CodeKeanu/steam-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/steam_mcp"]

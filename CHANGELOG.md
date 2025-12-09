@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.1] - 2025-12-09
+
+### Fixed
+- Updated tool count in README (18 → 19)
+- Fixed pyproject.toml URLs to point to correct repository (CodeKeanu/steam-mcp)
+- Reorganized README tool tables with per-section counts
+- Simplified dev commands to only reference pytest (removed mypy/ruff)
+- Added venv activation to dev workflow instructions
+
 ## [v0.5.0] - 2025-12-08
 
 ### Added

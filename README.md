@@ -11,7 +11,7 @@ Once set up, you can ask Claude things like:
 - "How many hours have I played this week?"
 - "What's the latest news for Team Fortress 2?"
 
-The server includes 18 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
+The server includes 19 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
 
 ---
 
@@ -112,28 +112,23 @@ For development, point Claude Desktop directly at your local install:
 
 ```bash
 # Run tests
+source .venv/bin/activate
 pytest
 
-# Type checking
-mypy src/
-
-# Lint
-ruff check src/
-
-# Format
-ruff format src/
+# Run tests with coverage
+pytest --cov=src/steam_mcp --cov-report=term-missing
 ```
 
 ### Docker (Local Builds)
 
 ```bash
 # Build from source
-docker compose --profile local build
+docker compose --profile local build steam-mcp-local
 
 # Run your local build
 docker compose --profile local up steam-mcp-local
 
-# Dev mode with hot reload
+# Dev mode with volume mount (reflects code changes on restart)
 docker compose --profile dev up steam-mcp-dev
 ```
 
@@ -177,9 +172,9 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools
+## Available Tools (19 total)
 
-### Player Profiles (ISteamUser)
+### Player Profiles (ISteamUser) - 6 tools
 
 | Tool | What it does |
 |------|--------------|
@@ -190,7 +185,7 @@ No registration needed - just drop in the file and restart.
 | `get_friend_list` | Get someone's friend list |
 | `get_player_bans` | Check VAC/game ban status |
 
-### Game Library (IPlayerService)
+### Game Library (IPlayerService) - 4 tools
 
 | Tool | What it does |
 |------|--------------|
@@ -199,7 +194,7 @@ No registration needed - just drop in the file and restart.
 | `get_steam_level` | Your Steam level |
 | `find_unplayed_games_with_friends` | Find games you all own but none have played |
 
-### Achievements & Stats (ISteamUserStats)
+### Achievements & Stats (ISteamUserStats) - 4 tools
 
 | Tool | What it does |
 |------|--------------|
@@ -208,7 +203,7 @@ No registration needed - just drop in the file and restart.
 | `get_global_achievement_percentages` | How rare each achievement is |
 | `get_user_stats_for_game` | Detailed game stats (kills, deaths, etc.) |
 
-### Game Info (ISteamApps & ISteamNews)
+### Game Info (ISteamApps) - 6 tools
 
 | Tool | What it does |
 |------|--------------|
@@ -218,6 +213,11 @@ No registration needed - just drop in the file and restart.
 | `get_similar_games` | Find games similar to ones you like |
 | `get_game_reviews` | User reviews with Steam ratings and sample text |
 | `check_app_up_to_date` | Check if a game version is current |
+
+### Game News (ISteamNews) - 1 tool
+
+| Tool | What it does |
+|------|--------------|
 | `get_news_for_app` | Latest news and patch notes |
 
 ---
