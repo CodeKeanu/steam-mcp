@@ -1,7 +1,6 @@
 # Steam MCP Server
 
-[![Tests](https://github.com/CodeKeanu/steam-mcp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/CodeKeanu/steam-mcp/actions/workflows/tests.yml)
-[![Docker Build](https://github.com/CodeKeanu/steam-mcp/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/CodeKeanu/steam-mcp/actions/workflows/docker-publish.yml)
+[![CI](https://github.com/CodeKeanu/steam-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CodeKeanu/steam-mcp/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub release](https://img.shields.io/github/v/release/CodeKeanu/steam-mcp?include_prereleases)](https://github.com/CodeKeanu/steam-mcp/releases)

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.4] - 2025-12-09
+
+### Changed
+- Consolidated CI into single workflow with job dependencies (GitHub best practice)
+- Workflow chain: Tests → Docker Build → Release
+- Replaced separate tests.yml, docker-publish.yml, release.yml with unified ci.yml
+- Updated README badge to single CI badge
+
 ## [v0.5.3] - 2025-12-09
 
 ### Changed
