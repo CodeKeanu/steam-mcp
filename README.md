@@ -16,7 +16,7 @@ Once set up, you can ask Claude things like:
 - "How many hours have I played this week?"
 - "What's the latest news for Team Fortress 2?"
 
-The server includes 19 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
+The server includes 21 tools covering player profiles, game libraries, achievements, stats, reviews, and news.
 
 ---
 
@@ -177,7 +177,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (19 total)
+## Available Tools (21 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -199,7 +199,7 @@ No registration needed - just drop in the file and restart.
 | `get_steam_level` | Your Steam level |
 | `find_unplayed_games_with_friends` | Find games you all own but none have played |
 
-### Achievements & Stats (ISteamUserStats) - 4 tools
+### Achievements & Stats (ISteamUserStats) - 6 tools
 
 | Tool | What it does |
 |------|--------------|
@@ -207,6 +207,8 @@ No registration needed - just drop in the file and restart.
 | `get_game_schema` | All achievements available in a game |
 | `get_global_achievement_percentages` | How rare each achievement is |
 | `get_user_stats_for_game` | Detailed game stats (kills, deaths, etc.) |
+| `get_current_players` | How many players are online right now |
+| `get_global_stats_for_game` | Aggregated stats across all players |
 
 ### Game Info (ISteamApps) - 6 tools
 

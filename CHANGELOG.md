@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.0] - 2025-12-09
+
+### Added
+- `get_current_players` - Get live player count for any game
+- `get_global_stats_for_game` - Aggregated global stats across all players
+
+### Changed
+- Tool count increased from 19 to 21
+
 ## [v0.5.4] - 2025-12-09
 
 ### Changed

@@ -430,6 +430,127 @@ class ISteamUserStats(BaseEndpoint):
 
         return "\n".join(output)
 
+    @endpoint(
+        name="get_current_players",
+        description=(
+            "Get the current number of players in a game. "
+            "Shows how many people are playing right now."
+        ),
+        params={
+            "app_id": {
+                "type": "integer",
+                "description": "Steam App ID of the game",
+                "required": True,
+            },
+        },
+    )
+    async def get_current_players(self, app_id: int) -> str:
+        """Get current player count for a game."""
+        result = await self.client.get(
+            "ISteamUserStats",
+            "GetNumberOfCurrentPlayers",
+            version=1,
+            params={"appid": app_id},
+        )
+
+        response = result.get("response", {})
+
+        if response.get("result") != 1:
+            return f"Could not get player count for App ID {app_id}. Game may not exist."
+
+        player_count = response.get("player_count", 0)
+
+        # Add context based on player count
+        if player_count >= 100000:
+            status = "🔥 Extremely Popular"
+        elif player_count >= 10000:
+            status = "📈 Very Active"
+        elif player_count >= 1000:
+            status = "✅ Active"
+        elif player_count >= 100:
+            status = "👥 Moderate"
+        else:
+            status = "📉 Low"
+
+        return f"App ID {app_id}: {player_count:,} players online ({status})"
+
+    @endpoint(
+        name="get_global_stats_for_game",
+        description=(
+            "Get aggregated global statistics for a game. "
+            "Shows totals across all players (e.g., total kills, total deaths). "
+            "Only works for games that publish global stats."
+        ),
+        params={
+            "app_id": {
+                "type": "integer",
+                "description": "Steam App ID of the game",
+                "required": True,
+            },
+            "stat_names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "List of stat names to retrieve. Use get_game_schema to discover available stats."
+                ),
+                "required": True,
+            },
+        },
+    )
+    async def get_global_stats_for_game(
+        self,
+        app_id: int,
+        stat_names: list[str],
+    ) -> str:
+        """Get global stats for a game."""
+        if not stat_names:
+            return "Error: Provide at least one stat name. Use get_game_schema to find available stats."
+
+        # Build the count and name[n] params
+        params: dict[str, Any] = {
+            "appid": app_id,
+            "count": len(stat_names),
+        }
+        for i, name in enumerate(stat_names):
+            params[f"name[{i}]"] = name
+
+        result = await self.client.get(
+            "ISteamUserStats",
+            "GetGlobalStatsForGame",
+            version=1,
+            params=params,
+        )
+
+        response = result.get("response", {})
+
+        if response.get("result") != 1:
+            return (
+                f"Could not get global stats for App ID {app_id}.\n"
+                "The game may not publish global stats, or the stat names are invalid."
+            )
+
+        globalstats = response.get("globalstats", {})
+
+        if not globalstats:
+            return f"No global stats returned for App ID {app_id}. Check stat names with get_game_schema."
+
+        output = [
+            f"Global Stats for App ID {app_id}",
+            f"Stats requested: {len(stat_names)}",
+            "",
+        ]
+
+        for stat_name, stat_data in globalstats.items():
+            total = stat_data.get("total", 0)
+            # Format large numbers
+            if isinstance(total, (int, float)) and total >= 1000:
+                total_str = f"{total:,.0f}"
+            else:
+                total_str = str(total)
+            output.append(f"  {stat_name}: {total_str}")
+
+        return "\n".join(output)
+
     async def _resolve_steam_id(self, steam_id: str) -> str:
         """Resolve steam_id, handling 'me'/'my' shortcuts."""
         steam_id_lower = steam_id.strip().lower()
