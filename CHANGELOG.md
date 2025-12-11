@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Steam Community Guides Integration** (`steam_guides.py`)
+  - `search_game_guides` - Search community guides for any game by App ID
+    - Filter by section (walkthrough, reference, achievement)
+    - Sort by popularity, recency, or rating
+    - Optional search query filter
+  - `get_guide_content` - Retrieve full guide content
+    - Converts HTML to readable text/markdown
+    - Extracts title, author, ratings, sections
+    - Optional image URL extraction
+
+### Changed
+- Tool count increased from 21 to 23
+
 ## [v0.6.0] - 2025-12-09
 
 ### Added
