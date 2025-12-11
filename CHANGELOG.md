@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Trading & Market Integration** (`steam_trading.py`)
+  - `get_trade_offers` - Get incoming/outgoing trade offers with item details
+    - Filter by: active, incoming, outgoing, or historical
+    - Shows items to give/receive with descriptions
+  - `get_trade_history` - View completed trade history
+    - Configurable max trades limit
+    - Shows items exchanged and trade partners
+  - `get_market_listings` - Check current Steam Community Market prices
+    - Lowest price, median price, and 24h volume
+    - Supports different currencies (USD, GBP, EUR)
+  - `check_market_eligibility` - Check if a user can use the Steam Market
+    - Shows restrictions, reasons, and expiration dates
+
+### Changed
+- Tool count increased from 26 to 30
+
 ## [v0.7.1] - 2025-12-11
 
 ### Fixed
