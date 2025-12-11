@@ -240,7 +240,7 @@ No registration needed - just drop in the file and restart.
 | Tool | What it does |
 |------|--------------|
 | `search_game_guides` | Search Steam Community guides for a game |
-| `get_guide_content` | Get full content of a specific guide |
+| `get_guide_content` | Get guide summary and metadata (full content requires visiting Steam) |
 
 ---
 

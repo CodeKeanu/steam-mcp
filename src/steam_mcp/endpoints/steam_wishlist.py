@@ -84,43 +84,33 @@ class ISteamWishlist(BaseEndpoint):
         """
         details: dict[int, dict[str, Any]] = {}
 
-        # Batch fetch - Store API supports multiple appids
-        # Process in batches of 50 to avoid URL length limits
-        batch_size = 50
-
-        async def fetch_batch(batch: list[int]) -> dict[int, dict[str, Any]]:
-            batch_details: dict[int, dict[str, Any]] = {}
+        async def fetch_single(app_id: int) -> tuple[int, dict[str, Any] | None]:
             try:
                 result = await self.client.get_store_api(
                     "appdetails",
                     params={
-                        "appids": ",".join(str(a) for a in batch),
+                        "appids": str(app_id),
                         "cc": country_code.lower(),
                     },
                 )
-
-                for app_id in batch:
-                    app_data = result.get(str(app_id), {})
-                    if app_data.get("success"):
-                        data = app_data.get("data", {})
-                        batch_details[app_id] = {
-                            "name": data.get("name", f"App {app_id}"),
-                            "is_free": data.get("is_free", False),
-                            "price_overview": data.get("price_overview"),
-                        }
+                app_data = result.get(str(app_id), {})
+                if app_data.get("success"):
+                    data = app_data.get("data", {})
+                    return (app_id, {
+                        "name": data.get("name", f"App {app_id}"),
+                        "is_free": data.get("is_free", False),
+                        "price_overview": data.get("price_overview"),
+                    })
             except Exception:
                 pass
+            return (app_id, None)
 
-            return batch_details
+        # Fetch all apps in parallel (individual requests required by Steam API)
+        results = await asyncio.gather(*[fetch_single(aid) for aid in app_ids])
 
-        # Fetch all batches in parallel
-        batches = [
-            app_ids[i : i + batch_size] for i in range(0, len(app_ids), batch_size)
-        ]
-        results = await asyncio.gather(*[fetch_batch(b) for b in batches])
-
-        for batch_result in results:
-            details.update(batch_result)
+        for app_id, data in results:
+            if data:
+                details[app_id] = data
 
         return details
 
