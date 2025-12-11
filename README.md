@@ -15,8 +15,10 @@ Once set up, you can ask Claude things like:
 - "What are the rarest achievements in Elden Ring?"
 - "How many hours have I played this week?"
 - "What's the latest news for Team Fortress 2?"
+- "Show my pending trade offers"
+- "What's the current price for an AK-47 Redline?"
 
-The server includes 26 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, and community guides.
+The server includes 30 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, and trading/market data.
 
 ---
 
@@ -177,7 +179,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (26 total)
+## Available Tools (30 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -241,6 +243,15 @@ No registration needed - just drop in the file and restart.
 |------|--------------|
 | `search_game_guides` | Search Steam Community guides for a game |
 | `get_guide_content` | Get guide summary and metadata (full content requires visiting Steam) |
+
+### Trading & Market (IEconService) - 4 tools
+
+| Tool | What it does |
+|------|--------------|
+| `get_trade_offers` | Get incoming/outgoing trade offers with item details |
+| `get_trade_history` | View completed trade history |
+| `get_market_listings` | Check current market prices for items |
+| `check_market_eligibility` | Check if a user can use the Steam Market |
 
 ---
 
