@@ -12,6 +12,7 @@ def mock_client():
     client = MagicMock()
     client._client = MagicMock()
     client._client.get = AsyncMock()
+    client.get = AsyncMock()  # For IPublishedFileService API calls
     return client
 
 
@@ -235,154 +236,126 @@ class TestGetGuideContent:
     @pytest.mark.asyncio
     async def test_accepts_numeric_id(self, steam_guides, mock_client):
         """Accepts numeric guide ID."""
-        mock_response = MagicMock()
-        mock_response.text = '<div class="workshopItemTitle">Test</div>'
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Test Guide",
+                    "file_description": "Test content",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                    "views": 100,
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
-        call_args = mock_client._client.get.call_args
-        assert call_args[1]["params"]["id"] == "12345"
+        # Check that client.get was called with correct params
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["publishedfileids[0]"] == "12345"
 
     @pytest.mark.asyncio
     async def test_accepts_full_url(self, steam_guides, mock_client):
         """Extracts ID from full URL."""
-        mock_response = MagicMock()
-        mock_response.text = '<div class="workshopItemTitle">Test</div>'
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Test Guide",
+                    "file_description": "Content here",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                }]
+            }
+        }
 
         url = "https://steamcommunity.com/sharedfiles/filedetails/?id=98765"
         result = await steam_guides.get_guide_content(guide_id=url)
 
-        call_args = mock_client._client.get.call_args
-        assert call_args[1]["params"]["id"] == "98765"
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["publishedfileids[0]"] == "98765"
 
     @pytest.mark.asyncio
     async def test_handles_removed_guide(self, steam_guides, mock_client):
         """Returns appropriate message for removed guides."""
-        mock_response = MagicMock()
-        mock_response.text = "The item you are trying to view has been removed"
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 9,  # Error code for removed
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
         assert "has been removed" in result
 
     @pytest.mark.asyncio
-    async def test_handles_private_guide(self, steam_guides, mock_client):
-        """Returns appropriate message for private guides."""
-        mock_response = MagicMock()
-        mock_response.text = "You do not have permission to view this item"
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+    async def test_handles_not_found_guide(self, steam_guides, mock_client):
+        """Returns appropriate message when guide not found."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": []
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
-        assert "private or restricted" in result
+        assert "not found" in result
 
     @pytest.mark.asyncio
     async def test_extracts_title(self, steam_guides, mock_client):
-        """Extracts guide title from HTML."""
-        html = """
-        <div class="workshopItemTitle">Ultimate Achievement Guide</div>
-        <div class="workshopItemDescription">Some content here</div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        """Extracts guide title from API response."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Ultimate Achievement Guide",
+                    "file_description": "Some content here",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
         assert "Ultimate Achievement Guide" in result
 
     @pytest.mark.asyncio
-    async def test_extracts_author(self, steam_guides, mock_client):
-        """Extracts author name from HTML."""
-        html = """
-        <div class="workshopItemTitle">Test Guide</div>
-        <div class="friendBlockContent">
-            GuideAuthor123
-        </div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
-
-        result = await steam_guides.get_guide_content(guide_id="12345")
-
-        assert "GuideAuthor123" in result
-
-    @pytest.mark.asyncio
     async def test_extracts_content(self, steam_guides, mock_client):
-        """Extracts and formats guide content."""
-        html = """
-        <div class="workshopItemTitle">Test Guide</div>
-        <div class="workshopItemDescription" id="highlightContent">
-            <p>This is the guide introduction.</p>
-            <h2>Section One</h2>
-            <p>Section one content.</p>
-        </div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        """Extracts and formats guide content from file_description."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Test Guide",
+                    "file_description": "[h1]Introduction[/h1]This is the guide content.",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
         assert "CONTENT" in result
-        # Should contain extracted text
-        assert "guide" in result.lower() or "section" in result.lower()
+        assert "Introduction" in result
+        assert "guide content" in result
 
     @pytest.mark.asyncio
-    async def test_includes_images_when_requested(self, steam_guides, mock_client):
-        """Includes image URLs when include_images=True."""
-        html = """
-        <div class="workshopItemTitle">Test Guide</div>
-        <div class="workshopItemDescription">
-            <img src="https://example.com/image1.jpg" />
-            <img src="https://example.com/image2.jpg" />
-        </div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
-
-        result = await steam_guides.get_guide_content(
-            guide_id="12345", include_images=True
-        )
-
-        assert "IMAGES" in result
-        assert "example.com/image1.jpg" in result
-
-    @pytest.mark.asyncio
-    async def test_excludes_images_by_default(self, steam_guides, mock_client):
-        """Does not include images by default."""
-        html = """
-        <div class="workshopItemTitle">Test Guide</div>
-        <div class="workshopItemDescription">
-            <img src="https://example.com/image1.jpg" />
-        </div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
-
-        result = await steam_guides.get_guide_content(guide_id="12345")
-
-        assert "IMAGES" not in result
-
-    @pytest.mark.asyncio
-    async def test_handles_http_error(self, steam_guides, mock_client):
-        """Returns error message on HTTP failure."""
-        mock_client._client.get.side_effect = Exception("Network error")
+    async def test_handles_api_error(self, steam_guides, mock_client):
+        """Returns error message on API failure."""
+        mock_client.get.side_effect = Exception("Network error")
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
@@ -392,11 +365,19 @@ class TestGetGuideContent:
     @pytest.mark.asyncio
     async def test_output_includes_guide_url(self, steam_guides, mock_client):
         """Output includes URL to the guide."""
-        html = '<div class="workshopItemTitle">Test</div>'
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Test",
+                    "file_description": "Content",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
@@ -404,17 +385,60 @@ class TestGetGuideContent:
 
     @pytest.mark.asyncio
     async def test_handles_empty_content_gracefully(self, steam_guides, mock_client):
-        """Handles guides with no extractable content."""
-        html = """
-        <div class="workshopItemTitle">Empty Guide</div>
-        """
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-        mock_client._client.get.return_value = mock_response
+        """Handles guides with no text content."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Image-Only Guide",
+                    "file_description": "",
+                    "creator": "12345",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1600000000,
+                }]
+            }
+        }
 
         result = await steam_guides.get_guide_content(guide_id="12345")
 
-        assert "Empty Guide" in result
-        # Should indicate no content was found
-        assert "No content could be extracted" in result or "CONTENT" in result
+        assert "Image-Only Guide" in result
+        # Should indicate no text content
+        assert "No text content" in result or "images" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_includes_metadata(self, steam_guides, mock_client):
+        """Output includes guide metadata."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [{
+                    "result": 1,
+                    "title": "Test Guide",
+                    "file_description": "Content",
+                    "creator": "76561198000000001",
+                    "consumer_appid": 440,
+                    "time_created": 1600000000,
+                    "time_updated": 1610000000,
+                    "views": 5000,
+                    "subscriptions": 100,
+                    "favorited": 50,
+                    "vote_data": {
+                        "votes_up": 80,
+                        "votes_down": 5,
+                    },
+                    "tags": [
+                        {"display_name": "Achievement"},
+                        {"display_name": "Walkthrough"},
+                    ],
+                }]
+            }
+        }
+
+        result = await steam_guides.get_guide_content(guide_id="12345")
+
+        assert "Views:" in result
+        assert "5,000" in result
+        assert "Votes:" in result
+        assert "+80" in result
+        assert "Tags:" in result
+        assert "Achievement" in result
