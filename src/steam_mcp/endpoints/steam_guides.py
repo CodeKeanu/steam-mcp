@@ -373,4 +373,8 @@ class ISteamGuides(BaseEndpoint):
         else:
             output.append("(No text content - this guide may consist primarily of images)")
 
+        output.append("")
+        output.append("-" * 40)
+        output.append("Note: Steam's API only provides a summary, full guide content requires visiting the URL above.")
+
         return "\n".join(output).strip()
