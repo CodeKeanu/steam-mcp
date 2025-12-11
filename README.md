@@ -16,7 +16,7 @@ Once set up, you can ask Claude things like:
 - "How many hours have I played this week?"
 - "What's the latest news for Team Fortress 2?"
 
-The server includes 23 tools covering player profiles, game libraries, achievements, stats, reviews, news, and community guides.
+The server includes 26 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, and community guides.
 
 ---
 
@@ -177,7 +177,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (23 total)
+## Available Tools (26 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -226,6 +226,14 @@ No registration needed - just drop in the file and restart.
 | Tool | What it does |
 |------|--------------|
 | `get_news_for_app` | Latest news and patch notes |
+
+### Wishlist & Pricing (ISteamWishlist) - 3 tools
+
+| Tool | What it does |
+|------|--------------|
+| `get_wishlist` | Get a user's wishlist with current pricing |
+| `check_wishlist_sales` | Find discounted games on your wishlist |
+| `compare_prices` | Compare prices across multiple games |
 
 ### Community Guides (ISteamGuides) - 2 tools
 
