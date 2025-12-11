@@ -11,8 +11,9 @@ def mock_client():
     """Create mock Steam client."""
     client = MagicMock()
     client.owner_steam_id = None
-    client.get_raw = AsyncMock()
-    client.get_store_api = AsyncMock()
+    client.get = AsyncMock()  # For IWishlistService API
+    client.get_raw = AsyncMock()  # For reviews endpoint
+    client.get_store_api = AsyncMock()  # For app details
     return client
 
 
@@ -31,28 +32,36 @@ class TestGetWishlist:
     @pytest.mark.asyncio
     async def test_get_wishlist_success(self, wishlist_endpoint, mock_client):
         """Should return formatted wishlist with prices."""
-        wishlist_data = {
-            "730": {"name": "Counter-Strike 2", "priority": 1},
-            "570": {"name": "Dota 2", "priority": 2},
+        # IWishlistService API returns items as a list
+        wishlist_response = {
+            "response": {
+                "items": [
+                    {"appid": 730, "priority": 1},
+                    {"appid": 570, "priority": 2},
+                ]
+            }
         }
 
-        price_data = {
+        # App details from Store API (includes name and price)
+        app_details = {
             "730": {
                 "success": True,
                 "data": {
+                    "name": "Counter-Strike 2",
                     "is_free": True,
                 },
             },
             "570": {
                 "success": True,
                 "data": {
+                    "name": "Dota 2",
                     "is_free": True,
                 },
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -70,7 +79,8 @@ class TestGetWishlist:
     @pytest.mark.asyncio
     async def test_get_wishlist_empty(self, wishlist_endpoint, mock_client):
         """Should handle empty wishlist."""
-        mock_client.get_raw.return_value = {}
+        # IWishlistService returns empty items list for empty wishlist
+        mock_client.get.return_value = {"response": {"items": []}}
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -86,7 +96,12 @@ class TestGetWishlist:
     @pytest.mark.asyncio
     async def test_get_wishlist_private(self, wishlist_endpoint, mock_client):
         """Should handle private wishlist."""
-        mock_client.get_raw.return_value = {"success": False}
+        # First call: GetWishlist returns empty items
+        # Second call: GetWishlistItemCount shows count > 0 (private)
+        mock_client.get.side_effect = [
+            {"response": {"items": []}},  # GetWishlist
+            {"response": {"count": 5}},  # GetWishlistItemCount
+        ]
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -116,14 +131,17 @@ class TestGetWishlist:
     @pytest.mark.asyncio
     async def test_get_wishlist_shows_discounted_games(self, wishlist_endpoint, mock_client):
         """Should highlight discounted games."""
-        wishlist_data = {
-            "440": {"name": "Team Fortress 2", "priority": 1},
+        wishlist_response = {
+            "response": {
+                "items": [{"appid": 440, "priority": 1}]
+            }
         }
 
-        price_data = {
+        app_details = {
             "440": {
                 "success": True,
                 "data": {
+                    "name": "Team Fortress 2",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$4.99",
@@ -136,8 +154,8 @@ class TestGetWishlist:
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -161,15 +179,20 @@ class TestCheckWishlistSales:
     @pytest.mark.asyncio
     async def test_check_sales_finds_discounted(self, wishlist_endpoint, mock_client):
         """Should find games on sale."""
-        wishlist_data = {
-            "730": {"name": "Game A", "priority": 1},
-            "570": {"name": "Game B", "priority": 2},
+        wishlist_response = {
+            "response": {
+                "items": [
+                    {"appid": 730, "priority": 1},
+                    {"appid": 570, "priority": 2},
+                ]
+            }
         }
 
-        price_data = {
+        app_details = {
             "730": {
                 "success": True,
                 "data": {
+                    "name": "Game A",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$14.99",
@@ -183,6 +206,7 @@ class TestCheckWishlistSales:
             "570": {
                 "success": True,
                 "data": {
+                    "name": "Game B",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$19.99",
@@ -195,8 +219,8 @@ class TestCheckWishlistSales:
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -215,15 +239,20 @@ class TestCheckWishlistSales:
     @pytest.mark.asyncio
     async def test_check_sales_min_discount_filter(self, wishlist_endpoint, mock_client):
         """Should filter by minimum discount."""
-        wishlist_data = {
-            "100": {"name": "Small Discount", "priority": 1},
-            "200": {"name": "Big Discount", "priority": 2},
+        wishlist_response = {
+            "response": {
+                "items": [
+                    {"appid": 100, "priority": 1},
+                    {"appid": 200, "priority": 2},
+                ]
+            }
         }
 
-        price_data = {
+        app_details = {
             "100": {
                 "success": True,
                 "data": {
+                    "name": "Small Discount",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$9.49",
@@ -237,6 +266,7 @@ class TestCheckWishlistSales:
             "200": {
                 "success": True,
                 "data": {
+                    "name": "Big Discount",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$9.99",
@@ -249,8 +279,8 @@ class TestCheckWishlistSales:
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -268,14 +298,17 @@ class TestCheckWishlistSales:
     @pytest.mark.asyncio
     async def test_check_sales_no_sales(self, wishlist_endpoint, mock_client):
         """Should report when nothing is on sale."""
-        wishlist_data = {
-            "100": {"name": "Full Price Game", "priority": 1},
+        wishlist_response = {
+            "response": {
+                "items": [{"appid": 100, "priority": 1}]
+            }
         }
 
-        price_data = {
+        app_details = {
             "100": {
                 "success": True,
                 "data": {
+                    "name": "Full Price Game",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$59.99",
@@ -288,8 +321,8 @@ class TestCheckWishlistSales:
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",
@@ -305,15 +338,20 @@ class TestCheckWishlistSales:
     @pytest.mark.asyncio
     async def test_check_sales_calculates_savings(self, wishlist_endpoint, mock_client):
         """Should calculate total potential savings."""
-        wishlist_data = {
-            "100": {"name": "Game 1", "priority": 1},
-            "200": {"name": "Game 2", "priority": 2},
+        wishlist_response = {
+            "response": {
+                "items": [
+                    {"appid": 100, "priority": 1},
+                    {"appid": 200, "priority": 2},
+                ]
+            }
         }
 
-        price_data = {
+        app_details = {
             "100": {
                 "success": True,
                 "data": {
+                    "name": "Game 1",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$10.00",
@@ -327,6 +365,7 @@ class TestCheckWishlistSales:
             "200": {
                 "success": True,
                 "data": {
+                    "name": "Game 2",
                     "is_free": False,
                     "price_overview": {
                         "final_formatted": "$15.00",
@@ -339,8 +378,8 @@ class TestCheckWishlistSales:
             },
         }
 
-        mock_client.get_raw.return_value = wishlist_data
-        mock_client.get_store_api.return_value = price_data
+        mock_client.get.return_value = wishlist_response
+        mock_client.get_store_api.return_value = app_details
 
         with patch(
             "steam_mcp.endpoints.steam_wishlist.normalize_steam_id",

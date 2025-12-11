@@ -18,7 +18,7 @@ class ISteamWishlist(BaseEndpoint):
 
     async def _fetch_wishlist_data(self, steam_id: str) -> dict[str, Any]:
         """
-        Fetch raw wishlist data from Steam.
+        Fetch raw wishlist data from Steam using official IWishlistService API.
 
         Args:
             steam_id: SteamID64 of the user
@@ -29,61 +29,73 @@ class ISteamWishlist(BaseEndpoint):
         Raises:
             Exception: If wishlist is private or unavailable
         """
-        url = f"https://store.steampowered.com/wishlist/profiles/{steam_id}/wishlistdata/"
-        params = {"p": 0}  # Start at page 0
+        # Use official IWishlistService API (replaces deprecated wishlistdata endpoint)
+        result = await self.client.get(
+            "IWishlistService",
+            "GetWishlist",
+            version=1,
+            params={"steamid": steam_id},
+        )
 
+        response = result.get("response", {})
+        items = response.get("items", [])
+
+        if not items:
+            # Empty result could mean private wishlist or empty wishlist
+            # Try to get item count to distinguish
+            try:
+                count_result = await self.client.get(
+                    "IWishlistService",
+                    "GetWishlistItemCount",
+                    version=1,
+                    params={"steamid": steam_id},
+                )
+                count = count_result.get("response", {}).get("count", 0)
+                if count > 0:
+                    raise ValueError("Wishlist is private or unavailable")
+            except Exception:
+                pass
+            return {}
+
+        # Convert list format to dict format for compatibility with existing code
+        # IWishlistService returns: [{"appid": 123, "priority": 0, "date_added": ...}, ...]
         all_items: dict[str, Any] = {}
-        page = 0
-
-        while True:
-            params["p"] = page
-            result = await self.client.get_raw(url, params=params)
-
-            # Empty result or success=2 means end of data
-            if not result or result.get("success") == 2:
-                break
-
-            # Check for private wishlist
-            if isinstance(result, dict) and result.get("success") is False:
-                raise ValueError("Wishlist is private or unavailable")
-
-            all_items.update(result)
-            page += 1
-
-            # Safety limit - most wishlists won't exceed 10 pages
-            if page > 20:
-                break
+        for item in items:
+            app_id = str(item.get("appid"))
+            all_items[app_id] = {
+                "priority": item.get("priority", 999),
+                "date_added": item.get("date_added"),
+            }
 
         return all_items
 
-    async def _fetch_app_prices(
+    async def _fetch_app_details(
         self, app_ids: list[int], country_code: str = "us"
     ) -> dict[int, dict[str, Any]]:
         """
-        Fetch price data for multiple apps.
+        Fetch details and price data for multiple apps.
 
         Args:
-            app_ids: List of app IDs to fetch prices for
+            app_ids: List of app IDs to fetch details for
             country_code: Country code for pricing
 
         Returns:
-            Dict mapping app_id to price info
+            Dict mapping app_id to app info (name, price, etc.)
         """
-        prices: dict[int, dict[str, Any]] = {}
+        details: dict[int, dict[str, Any]] = {}
 
         # Batch fetch - Store API supports multiple appids
         # Process in batches of 50 to avoid URL length limits
         batch_size = 50
 
         async def fetch_batch(batch: list[int]) -> dict[int, dict[str, Any]]:
-            batch_prices: dict[int, dict[str, Any]] = {}
+            batch_details: dict[int, dict[str, Any]] = {}
             try:
                 result = await self.client.get_store_api(
                     "appdetails",
                     params={
                         "appids": ",".join(str(a) for a in batch),
                         "cc": country_code.lower(),
-                        "filters": "price_overview",
                     },
                 )
 
@@ -91,14 +103,15 @@ class ISteamWishlist(BaseEndpoint):
                     app_data = result.get(str(app_id), {})
                     if app_data.get("success"):
                         data = app_data.get("data", {})
-                        batch_prices[app_id] = {
+                        batch_details[app_id] = {
+                            "name": data.get("name", f"App {app_id}"),
                             "is_free": data.get("is_free", False),
                             "price_overview": data.get("price_overview"),
                         }
             except Exception:
                 pass
 
-            return batch_prices
+            return batch_details
 
         # Fetch all batches in parallel
         batches = [
@@ -107,9 +120,9 @@ class ISteamWishlist(BaseEndpoint):
         results = await asyncio.gather(*[fetch_batch(b) for b in batches])
 
         for batch_result in results:
-            prices.update(batch_result)
+            details.update(batch_result)
 
-        return prices
+        return details
 
     def _format_price(self, price_info: dict[str, Any] | None, is_free: bool) -> str:
         """Format price information for display."""
@@ -174,17 +187,18 @@ class ISteamWishlist(BaseEndpoint):
         if not wishlist_data:
             return "Wishlist is empty or unavailable."
 
-        # Extract app IDs and fetch prices in parallel
+        # Extract app IDs and fetch details (names + prices) in parallel
         app_ids = [int(app_id) for app_id in wishlist_data.keys()]
-        prices = await self._fetch_app_prices(app_ids, country_code)
+        app_details = await self._fetch_app_details(app_ids, country_code)
 
         # Build output sorted by priority (lower = higher priority)
         items: list[tuple[int, str, dict[str, Any]]] = []
         for app_id_str, item_data in wishlist_data.items():
             app_id = int(app_id_str)
-            name = item_data.get("name", f"App {app_id}")
+            details = app_details.get(app_id, {})
+            name = details.get("name", f"App {app_id}")
             priority = item_data.get("priority", 999)
-            items.append((priority, name, {"app_id": app_id, "data": item_data}))
+            items.append((priority, name, {"app_id": app_id, "details": details}))
 
         items.sort(key=lambda x: (x[0], x[1].lower()))
 
@@ -196,9 +210,9 @@ class ISteamWishlist(BaseEndpoint):
 
         for priority, name, info in items:
             app_id = info["app_id"]
-            price_data = prices.get(app_id, {})
-            is_free = price_data.get("is_free", False)
-            price_overview = price_data.get("price_overview")
+            details = info["details"]
+            is_free = details.get("is_free", False)
+            price_overview = details.get("price_overview")
             price_str = self._format_price(price_overview, is_free)
 
             discount = 0
@@ -278,18 +292,18 @@ class ISteamWishlist(BaseEndpoint):
         if not wishlist_data:
             return "Wishlist is empty or unavailable."
 
-        # Extract app IDs and fetch prices
+        # Extract app IDs and fetch details (names + prices)
         app_ids = [int(app_id) for app_id in wishlist_data.keys()]
-        prices = await self._fetch_app_prices(app_ids, country_code)
+        app_details = await self._fetch_app_details(app_ids, country_code)
 
         # Filter to only discounted games
         sales: list[tuple[int, str, int, dict[str, Any]]] = []
-        for app_id_str, item_data in wishlist_data.items():
+        for app_id_str, _item_data in wishlist_data.items():
             app_id = int(app_id_str)
-            name = item_data.get("name", f"App {app_id}")
+            details = app_details.get(app_id, {})
+            name = details.get("name", f"App {app_id}")
 
-            price_data = prices.get(app_id, {})
-            price_overview = price_data.get("price_overview")
+            price_overview = details.get("price_overview")
 
             if price_overview:
                 discount = price_overview.get("discount_percent", 0)
