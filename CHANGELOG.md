@@ -17,9 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Converts HTML to readable text/markdown
     - Extracts title, author, ratings, sections
     - Optional image URL extraction
+- **Wishlist Management & Price Tracking** (`steam_wishlist.py`)
+  - `get_wishlist` - Get a user's Steam wishlist with current pricing
+  - `check_wishlist_sales` - Find discounted games on wishlist, sorted by discount
+  - `compare_prices` - Compare prices across multiple games with review scores
+  - Supports public wishlists, parallel API fetching for performance
+  - Works with 'me'/'my' Steam ID shortcuts
 
 ### Changed
-- Tool count increased from 21 to 23
+- Tool count increased from 21 to 26
 
 ## [v0.6.0] - 2025-12-09
 
