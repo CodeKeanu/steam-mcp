@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.8.0] - 2025-12-11
+
 ### Added
 - **Trading & Market Integration** (`steam_trading.py`)
   - `get_trade_offers` - Get incoming/outgoing trade offers with item details
@@ -203,7 +205,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.8.0...HEAD
+[v0.8.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.4...v0.6.0
