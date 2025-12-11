@@ -7,22 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.1] - 2025-12-11
+
+### Fixed
+- **Wishlist sales detection** (#20) - Steam's `appdetails` API only returns data for the first app when batching; now uses individual requests per app
+- **Guide content limitation** (#19) - Added notice that Steam's API only provides summaries; full guide content requires visiting Steam directly
+
+## [v0.7.0] - 2025-12-11
+
 ### Added
 - **Steam Community Guides Integration** (`steam_guides.py`)
   - `search_game_guides` - Search community guides for any game by App ID
     - Filter by section (walkthrough, reference, achievement)
     - Sort by popularity, recency, or rating
     - Optional search query filter
-  - `get_guide_content` - Retrieve full guide content
-    - Converts HTML to readable text/markdown
-    - Extracts title, author, ratings, sections
-    - Optional image URL extraction
+  - `get_guide_content` - Retrieve guide summary and metadata via official API
 - **Wishlist Management & Price Tracking** (`steam_wishlist.py`)
   - `get_wishlist` - Get a user's Steam wishlist with current pricing
   - `check_wishlist_sales` - Find discounted games on wishlist, sorted by discount
   - `compare_prices` - Compare prices across multiple games with review scores
   - Supports public wishlists, parallel API fetching for performance
   - Works with 'me'/'my' Steam ID shortcuts
+- **Response Caching** (#17) - TTL-based caching layer for API responses
 
 ### Changed
 - Tool count increased from 21 to 26
@@ -180,7 +186,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.1...HEAD
+[v0.7.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.0...v0.7.1
+[v0.7.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.6.0...v0.7.0
+[v0.6.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.4...v0.6.0
+[v0.5.4]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.3...v0.5.4
+[v0.5.3]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.2...v0.5.3
+[v0.5.2]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.1...v0.5.2
+[v0.5.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.3.0...v0.3.1
