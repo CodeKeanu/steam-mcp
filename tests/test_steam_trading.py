@@ -64,7 +64,7 @@ class TestGetTradeOffers:
         ):
             result = await econ_service.get_trade_offers(
                 steam_id="76561198000000001",
-                filter="active",
+                offer_filter="active",
             )
 
         assert "Incoming Offers (1)" in result
@@ -106,7 +106,7 @@ class TestGetTradeOffers:
         ):
             result = await econ_service.get_trade_offers(
                 steam_id="76561198000000001",
-                filter="outgoing",
+                offer_filter="outgoing",
             )
 
         assert "Outgoing Offers (1)" in result

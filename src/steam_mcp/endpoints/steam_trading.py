@@ -3,9 +3,14 @@
 This module provides MCP tools for Steam trading and market functionality,
 including trade offers, trade history, and market eligibility.
 
+IMPORTANT: Trade offer and history APIs (IEconService) only return data for the
+Steam account that owns the API key. The steam_id parameter is validated but
+the API will only return results for the authenticated account.
+
 Reference: https://partner.steamgames.com/doc/webapi/IEconService
 """
 
+from datetime import datetime
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
@@ -46,12 +51,12 @@ class IEconService(BaseEndpoint):
             "steam_id": {
                 "type": "string",
                 "description": (
-                    "Steam ID in any format. Use 'me' or 'my' to query your own profile "
-                    "(requires STEAM_USER_ID to be configured)."
+                    "Steam ID in any format. Use 'me' or 'my' for your profile. "
+                    "Note: This API only returns data for the API key owner's account."
                 ),
                 "required": True,
             },
-            "filter": {
+            "offer_filter": {
                 "type": "string",
                 "description": (
                     "Filter trade offers: 'active' (pending), 'incoming', 'outgoing', "
@@ -72,10 +77,13 @@ class IEconService(BaseEndpoint):
     async def get_trade_offers(
         self,
         steam_id: str,
-        filter: str = "active",
+        offer_filter: str = "active",
         include_descriptions: bool = True,
     ) -> str:
-        """Get trade offers for a Steam user."""
+        """Get trade offers for a Steam user.
+
+        Note: This API only returns data for the API key owner's account.
+        """
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
             return normalized_id
@@ -84,15 +92,15 @@ class IEconService(BaseEndpoint):
         params: dict[str, Any] = {
             "get_descriptions": include_descriptions,
             "language": "english",
-            "active_only": filter in ("active", "incoming", "outgoing"),
-            "historical_only": filter == "historical",
+            "active_only": offer_filter in ("active", "incoming", "outgoing"),
+            "historical_only": offer_filter == "historical",
         }
 
         # For incoming/outgoing filters, we need both but will filter the result
-        if filter in ("active", "incoming", "outgoing"):
+        if offer_filter in ("active", "incoming", "outgoing"):
             params["get_sent_offers"] = True
             params["get_received_offers"] = True
-        elif filter == "historical":
+        elif offer_filter == "historical":
             params["get_sent_offers"] = True
             params["get_received_offers"] = True
 
@@ -118,9 +126,9 @@ class IEconService(BaseEndpoint):
             desc_lookup[key] = desc
 
         # Filter based on user request
-        if filter == "incoming":
+        if offer_filter == "incoming":
             sent_offers = []
-        elif filter == "outgoing":
+        elif offer_filter == "outgoing":
             received_offers = []
 
         # Format output
@@ -147,7 +155,7 @@ class IEconService(BaseEndpoint):
             output.append("")
 
         if not sent_offers and not received_offers:
-            output.append(f"No {filter} trade offers found.")
+            output.append(f"No {offer_filter} trade offers found.")
 
         return "\n".join(output)
 
@@ -224,7 +232,8 @@ class IEconService(BaseEndpoint):
             "steam_id": {
                 "type": "string",
                 "description": (
-                    "Steam ID in any format. Use 'me' or 'my' to query your own profile."
+                    "Steam ID in any format. Use 'me' or 'my' for your profile. "
+                    "Note: This API only returns data for the API key owner's account."
                 ),
                 "required": True,
             },
@@ -250,7 +259,10 @@ class IEconService(BaseEndpoint):
         max_trades: int = 20,
         include_failed: bool = False,
     ) -> str:
-        """Get trade history for a Steam user."""
+        """Get trade history for a Steam user.
+
+        Note: This API only returns data for the API key owner's account.
+        """
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
             return normalized_id
@@ -303,7 +315,6 @@ class IEconService(BaseEndpoint):
             output.append(f"  Partner: {partner_id}")
             output.append(f"  Status: {self._get_trade_status(status)}")
             if time_init:
-                from datetime import datetime
                 dt = datetime.fromtimestamp(time_init)
                 output.append(f"  Date: {dt.strftime('%Y-%m-%d %H:%M')}")
 
@@ -399,9 +410,6 @@ class IEconService(BaseEndpoint):
         if not result.get("success"):
             return f"Item not found: '{item_name}' (App ID: {app_id})"
 
-        currency_symbols = {1: "$", 2: "£", 3: "€"}
-        symbol = currency_symbols.get(currency, "$")
-
         output = [
             f"Market Listings for: {item_name}",
             f"App ID: {app_id}",
@@ -469,13 +477,11 @@ class IEconService(BaseEndpoint):
 
         expiration = response.get("expiration", None)
         if expiration:
-            from datetime import datetime
             dt = datetime.fromtimestamp(expiration)
             output.append(f"Restriction Expires: {dt.strftime('%Y-%m-%d %H:%M')}")
 
         allowed_at = response.get("allowed_at_time", None)
         if allowed_at:
-            from datetime import datetime
             dt = datetime.fromtimestamp(allowed_at)
             output.append(f"Eligible From: {dt.strftime('%Y-%m-%d %H:%M')}")
 
