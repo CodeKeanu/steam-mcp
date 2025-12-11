@@ -4,8 +4,8 @@ This module provides MCP tools for searching and retrieving Steam Community guid
 for games. These guides include walkthroughs, achievement guides, build guides,
 and strategy guides created by the community.
 
-Note: Steam Community guides don't have an official API. This implementation
-parses HTML from the public guides pages (no authentication required).
+Guide content is retrieved via the IPublishedFileService/GetDetails API.
+Guide search uses HTML parsing as there's no official search API.
 """
 
 import re
@@ -263,7 +263,7 @@ class ISteamGuides(BaseEndpoint):
         name="get_guide_content",
         description=(
             "Get the full content of a specific Steam Community guide. "
-            "Returns the guide title, author, content (formatted as text), and sections. "
+            "Returns the guide title, author, content (formatted as text), and metadata. "
             "Use search_game_guides first to find guide IDs."
         ),
         params={
@@ -272,142 +272,77 @@ class ISteamGuides(BaseEndpoint):
                 "description": "Guide ID or full URL (from search_game_guides results)",
                 "required": True,
             },
-            "include_images": {
-                "type": "boolean",
-                "description": "Include image URLs in output (default: false)",
-                "required": False,
-                "default": False,
-            },
         },
     )
     async def get_guide_content(
         self,
         guide_id: str,
-        include_images: bool = False,
     ) -> str:
-        """Get the full content of a Steam Community guide."""
+        """Get the full content of a Steam Community guide via official API."""
         # Extract ID if URL provided
         extracted_id = self._extract_guide_id(guide_id)
         if not extracted_id:
             return f"Invalid guide ID or URL: {guide_id}"
 
-        url = f"{self.COMMUNITY_URL}/sharedfiles/filedetails/"
-        params = {"id": extracted_id}
-
+        # Use IPublishedFileService/GetDetails API
         try:
-            response = await self.client._client.get(url, params=params)
-            response.raise_for_status()
-            html = response.text
+            result = await self.client.get(
+                "IPublishedFileService",
+                "GetDetails",
+                version=1,
+                params={
+                    "publishedfileids[0]": extracted_id,
+                    "includevotes": "true",
+                    "includetags": "true",
+                    "strip_description_bbcode": "true",
+                },
+            )
         except Exception as e:
             return f"Error fetching guide {extracted_id}: {e}"
 
-        # Check for deleted/unavailable guide
-        if "The item you are trying to view has been removed" in html:
-            return f"Guide {extracted_id} has been removed or is unavailable."
+        response = result.get("response", {})
+        files = response.get("publishedfiledetails", [])
 
-        if "You do not have permission to view this item" in html:
-            return f"Guide {extracted_id} is private or restricted."
+        if not files:
+            return f"Guide {extracted_id} not found."
 
-        # Extract title
-        title_match = re.search(
-            r'<div class="workshopItemTitle">([^<]+)</div>',
-            html,
-            re.IGNORECASE
-        )
-        title = unescape(title_match.group(1).strip()) if title_match else "Unknown Title"
+        file_data = files[0]
 
-        # Extract author
-        author_match = re.search(
-            r'<div class="friendBlockContent">\s*([^<\n]+)',
-            html,
-            re.IGNORECASE
-        )
-        author = unescape(author_match.group(1).strip()) if author_match else "Unknown Author"
+        # Check result code
+        result_code = file_data.get("result", 0)
+        if result_code != 1:
+            if result_code == 9:
+                return f"Guide {extracted_id} has been removed or is unavailable."
+            return f"Guide {extracted_id} is not accessible (error code: {result_code})."
 
-        # Extract last updated date
-        date_match = re.search(
-            r'<div class="detailsStatRight">([^<]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[^<]*)</div>',
-            html,
-            re.IGNORECASE
-        )
-        last_updated = date_match.group(1).strip() if date_match else "Unknown"
+        # Extract metadata
+        title = file_data.get("title", "Unknown Title")
+        creator_id = file_data.get("creator", "Unknown")
+        app_id = file_data.get("consumer_appid", "Unknown")
+        description = file_data.get("file_description", "")
+        time_created = file_data.get("time_created", 0)
+        time_updated = file_data.get("time_updated", 0)
+        views = file_data.get("views", 0)
+        subscriptions = file_data.get("subscriptions", 0)
+        favorited = file_data.get("favorited", 0)
+        lifetime_subscriptions = file_data.get("lifetime_subscriptions", 0)
 
-        # Extract rating info
-        rating_match = re.search(
-            r'numRatings[^>]*>(\d+)',
-            html,
-            re.IGNORECASE
-        )
-        num_ratings = rating_match.group(1) if rating_match else "0"
+        # Vote data
+        vote_data = file_data.get("vote_data", {})
+        votes_up = vote_data.get("votes_up", 0)
+        votes_down = vote_data.get("votes_down", 0)
 
-        # Extract view count
-        views_match = re.search(
-            r'<div class="stats_table">.*?<td>(\d[\d,]*)</td>\s*<td>Unique Visitors</td>',
-            html,
-            re.IGNORECASE | re.DOTALL
-        )
-        views = views_match.group(1) if views_match else "Unknown"
+        # Tags
+        tags = file_data.get("tags", [])
+        tag_names = [t.get("display_name", t.get("tag", "")) for t in tags]
 
-        # Extract guide content - look for the guide body
-        content_match = re.search(
-            r'<div class="guide subSections">(.*?)</div>\s*(?:<div class="workshopItemControls">|<div class="commentthread_area">)',
-            html,
-            re.IGNORECASE | re.DOTALL
-        )
+        # Content is already plain text (BBCode stripped by API)
+        content = description
 
-        if not content_match:
-            # Try alternative pattern for simpler guides
-            content_match = re.search(
-                r'<div class="workshopItemDescription"[^>]*>(.*?)</div>',
-                html,
-                re.IGNORECASE | re.DOTALL
-            )
-
-        if not content_match:
-            # Try yet another pattern
-            content_match = re.search(
-                r'<div[^>]*id="guideSubsections"[^>]*>(.*?)</div>\s*<div',
-                html,
-                re.IGNORECASE | re.DOTALL
-            )
-
-        raw_content = content_match.group(1) if content_match else ""
-
-        # Extract images if requested
-        images: list[str] = []
-        if include_images:
-            img_pattern = re.compile(
-                r'<img[^>]+src="([^"]+)"',
-                re.IGNORECASE
-            )
-            images = [
-                unescape(m.group(1))
-                for m in img_pattern.finditer(raw_content)
-                if "emoticon" not in m.group(1).lower()
-            ]
-
-        # Extract sections/chapters
-        sections: list[dict[str, str]] = []
-        section_pattern = re.compile(
-            r'<div class="subSection(?:Desc|Title)?[^"]*"[^>]*>(.*?)</div>',
-            re.IGNORECASE | re.DOTALL
-        )
-        section_matches = section_pattern.findall(raw_content)
-
-        for section_html in section_matches:
-            section_text = self._html_to_text(section_html)
-            if section_text and len(section_text) > 10:
-                # Check if it's a title (short) or content (long)
-                if len(section_text) < 100 and not section_text.startswith("-"):
-                    sections.append({"type": "title", "text": section_text})
-                else:
-                    sections.append({"type": "content", "text": section_text})
-
-        # If no sections found, convert entire content
-        if not sections:
-            full_text = self._html_to_text(raw_content)
-            if full_text:
-                sections.append({"type": "content", "text": full_text})
+        # Format dates
+        from datetime import datetime
+        created_str = datetime.fromtimestamp(time_created).strftime("%b %d, %Y") if time_created else "Unknown"
+        updated_str = datetime.fromtimestamp(time_updated).strftime("%b %d, %Y") if time_updated else "Unknown"
 
         # Format output
         output: list[str] = []
@@ -416,10 +351,16 @@ class ISteamGuides(BaseEndpoint):
         output.append("=" * 60)
         output.append("")
         output.append(f"Guide ID: {extracted_id}")
-        output.append(f"Author: {author}")
-        output.append(f"Last Updated: {last_updated}")
-        output.append(f"Ratings: {num_ratings}")
-        output.append(f"Views: {views}")
+        output.append(f"App ID: {app_id}")
+        output.append(f"Creator ID: {creator_id}")
+        output.append(f"Created: {created_str}")
+        output.append(f"Updated: {updated_str}")
+        output.append(f"Views: {views:,}")
+        output.append(f"Subscribers: {subscriptions:,} (lifetime: {lifetime_subscriptions:,})")
+        output.append(f"Favorites: {favorited:,}")
+        output.append(f"Votes: +{votes_up:,} / -{votes_down:,}")
+        if tag_names:
+            output.append(f"Tags: {', '.join(tag_names)}")
         output.append(f"URL: {self.COMMUNITY_URL}/sharedfiles/filedetails/?id={extracted_id}")
         output.append("")
         output.append("-" * 40)
@@ -427,23 +368,9 @@ class ISteamGuides(BaseEndpoint):
         output.append("-" * 40)
         output.append("")
 
-        for section in sections:
-            if section["type"] == "title":
-                output.append(f"## {section['text']}")
-                output.append("")
-            else:
-                output.append(section["text"])
-                output.append("")
-
-        if not sections:
-            output.append("(No content could be extracted from this guide)")
-
-        if include_images and images:
-            output.append("")
-            output.append("-" * 40)
-            output.append("IMAGES")
-            output.append("-" * 40)
-            for i, img_url in enumerate(images[:10], 1):  # Limit to 10 images
-                output.append(f"  [{i}] {img_url}")
+        if content:
+            output.append(content)
+        else:
+            output.append("(No text content - this guide may consist primarily of images)")
 
         return "\n".join(output).strip()
