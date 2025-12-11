@@ -1,7 +1,8 @@
-"""Steam API Client with rate limiting and error handling.
+"""Steam API Client with rate limiting, caching, and error handling.
 
 This client provides a robust interface to the Steam Web API with:
 - Rate limiting to avoid hitting API limits
+- TTL-based response caching to reduce API load
 - Automatic retry with exponential backoff
 - Consistent error handling across all endpoints
 - Response wrapper normalization
@@ -14,6 +15,8 @@ import time
 from typing import Any
 
 import httpx
+
+from steam_mcp.client.cache import CacheCategory, TTLCache
 
 
 logger = logging.getLogger(__name__)
@@ -70,6 +73,21 @@ class SteamClient:
     BASE_URL = "https://api.steampowered.com"
     STORE_API_URL = "https://store.steampowered.com/api"
 
+    # Default TTLs for different endpoint types (in seconds)
+    DEFAULT_CACHE_TTLS: dict[str, int] = {
+        # Static data - rarely changes
+        "appdetails": CacheCategory.APP_DETAILS.value,
+        "GetSchemaForGame": CacheCategory.GAME_SCHEMA.value,
+        "GetGlobalAchievementPercentagesForApp": CacheCategory.GLOBAL_ACHIEVEMENTS.value,
+        # Semi-dynamic data
+        "GetPlayerSummaries": CacheCategory.PLAYER_SUMMARY.value,
+        "GetOwnedGames": CacheCategory.PLAYER_GAMES.value,
+        "GetRecentlyPlayedGames": CacheCategory.PLAYER_GAMES.value,
+        # Dynamic data
+        "GetNumberOfCurrentPlayers": CacheCategory.CURRENT_PLAYERS.value,
+        "GetNewsForApp": CacheCategory.NEWS.value,
+    }
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -77,6 +95,8 @@ class SteamClient:
         requests_per_second: float = 10.0,
         max_retries: int = 3,
         timeout: float = 30.0,
+        enable_cache: bool = True,
+        cache_max_size: int = 1000,
     ):
         """
         Initialize Steam API client.
@@ -88,6 +108,8 @@ class SteamClient:
             requests_per_second: Rate limit for API requests.
             max_retries: Maximum number of retry attempts for failed requests.
             timeout: Request timeout in seconds.
+            enable_cache: Whether to enable response caching (default: True).
+            cache_max_size: Maximum number of cached entries (default: 1000).
         """
         self.api_key = api_key or os.getenv("STEAM_API_KEY")
         if not self.api_key:
@@ -100,6 +122,13 @@ class SteamClient:
         self.timeout = timeout
         self.rate_limiter = RateLimiter(requests_per_second)
 
+        # Initialize cache if enabled
+        self._cache: TTLCache | None = None
+        if enable_cache:
+            self._cache = TTLCache(
+                default_ttl=CacheCategory.DEFAULT.value, max_size=cache_max_size
+            )
+
         self._client = httpx.AsyncClient(
             timeout=timeout,
             headers={"Accept": "application/json"},
@@ -108,6 +137,24 @@ class SteamClient:
     async def close(self) -> None:
         """Close the HTTP client."""
         await self._client.aclose()
+
+    @property
+    def cache_stats(self) -> dict[str, int] | None:
+        """Get cache statistics, or None if caching is disabled."""
+        if self._cache:
+            return self._cache.stats
+        return None
+
+    async def clear_cache(self) -> int:
+        """
+        Clear all cached entries.
+
+        Returns:
+            Number of entries cleared, or 0 if caching is disabled.
+        """
+        if self._cache:
+            return await self._cache.clear()
+        return 0
 
     async def __aenter__(self) -> "SteamClient":
         return self
@@ -224,12 +271,27 @@ class SteamClient:
             return {"data": data}
         return data
 
+    def _get_cache_ttl(self, method: str, endpoint: str | None = None) -> int:
+        """
+        Get TTL for a specific method or endpoint.
+
+        Args:
+            method: API method name.
+            endpoint: Store API endpoint (optional).
+
+        Returns:
+            TTL in seconds.
+        """
+        key = endpoint or method
+        return self.DEFAULT_CACHE_TTLS.get(key, CacheCategory.DEFAULT.value)
+
     async def get(
         self,
         interface: str,
         method: str,
         version: int = 1,
         params: dict[str, Any] | None = None,
+        bypass_cache: bool = False,
     ) -> dict[str, Any]:
         """
         Make a GET request to the Steam API.
@@ -239,12 +301,33 @@ class SteamClient:
             method: API method (e.g., "GetPlayerSummaries")
             version: API version (default: 1)
             params: Additional query parameters
+            bypass_cache: If True, skip cache lookup and always fetch fresh data.
 
         Returns:
             API response data
         """
         url = self._build_url(interface, method, version)
-        return await self._request("GET", url, params=params)
+
+        # Preserve original params for cache key (before _request mutates them)
+        cache_params = dict(params) if params else None
+
+        # Check cache first (if enabled and not bypassed)
+        cache_key = f"{interface}.{method}.v{version}"
+        if self._cache and not bypass_cache:
+            hit, cached_data = await self._cache.get(cache_key, cache_params)
+            if hit:
+                logger.debug(f"Cache hit for {cache_key}")
+                return cached_data
+
+        # Make the actual request (note: this mutates params)
+        result = await self._request("GET", url, params=params)
+
+        # Cache the result using original params
+        if self._cache:
+            ttl = self._get_cache_ttl(method)
+            await self._cache.set(cache_key, cache_params, result, ttl)
+
+        return result
 
     async def post(
         self,
@@ -274,6 +357,7 @@ class SteamClient:
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
+        bypass_cache: bool = False,
     ) -> dict[str, Any]:
         """
         Make a request to the Steam Store API (unofficial but stable).
@@ -281,6 +365,7 @@ class SteamClient:
         Args:
             endpoint: Store API endpoint (e.g., "appdetails")
             params: Query parameters
+            bypass_cache: If True, skip cache lookup and always fetch fresh data.
 
         Returns:
             API response data
@@ -294,12 +379,27 @@ class SteamClient:
         params = params or {}
         params.pop("key", None)
 
+        # Check cache first (if enabled and not bypassed)
+        cache_key = f"store.{endpoint}"
+        if self._cache and not bypass_cache:
+            hit, cached_data = await self._cache.get(cache_key, params)
+            if hit:
+                logger.debug(f"Cache hit for {cache_key}")
+                return cached_data
+
         await self.rate_limiter.acquire()
 
         try:
             response = await self._client.get(url, params=params)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+
+            # Cache the result
+            if self._cache:
+                ttl = self._get_cache_ttl("", endpoint)
+                await self._cache.set(cache_key, params, result, ttl)
+
+            return result
         except httpx.HTTPError as e:
             raise SteamAPIError(f"Store API error: {e}") from e
 
