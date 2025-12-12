@@ -497,3 +497,78 @@ class TestHelperFunctions:
 
         assert _format_timestamp(0) == "Unknown"
         assert "2021-01-01" in _format_timestamp(1609459200)
+        assert "UTC" in _format_timestamp(1609459200)
+
+    def test_format_timestamp_negative(self):
+        """Test timestamp formatting with negative value."""
+        from steam_mcp.endpoints.steam_workshop import _format_timestamp
+
+        assert _format_timestamp(-1) == "Unknown"
+
+
+class TestInputValidation:
+    """Tests for input validation."""
+
+    @pytest.mark.asyncio
+    async def test_empty_workshop_id_returns_error(self, workshop_service):
+        """Empty workshop_id should return error."""
+        result = await workshop_service.get_workshop_item_details(workshop_id="")
+        assert "Workshop ID is required" in result
+
+    @pytest.mark.asyncio
+    async def test_whitespace_workshop_id_returns_error(self, workshop_service):
+        """Whitespace-only workshop_id should return error."""
+        result = await workshop_service.get_workshop_item_details(workshop_id="   ")
+        assert "Workshop ID is required" in result
+
+    @pytest.mark.asyncio
+    async def test_empty_workshop_id_json_format(self, workshop_service):
+        """Empty workshop_id should return JSON error when format='json'."""
+        result = await workshop_service.get_workshop_item_details(
+            workshop_id="", format="json"
+        )
+        data = json.loads(result)
+        assert "error" in data
+        assert "Workshop ID is required" in data["error"]
+
+    @pytest.mark.asyncio
+    async def test_empty_collection_id_returns_error(self, workshop_service):
+        """Empty collection_id should return error."""
+        result = await workshop_service.get_workshop_collection(collection_id="")
+        assert "Collection ID is required" in result
+
+    @pytest.mark.asyncio
+    async def test_whitespace_collection_id_returns_error(self, workshop_service):
+        """Whitespace-only collection_id should return error."""
+        result = await workshop_service.get_workshop_collection(collection_id="   ")
+        assert "Collection ID is required" in result
+
+
+class TestTagFiltering:
+    """Tests for tag filtering edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_tags_with_missing_key_filtered(self, workshop_service, mock_client):
+        """Tags missing the 'tag' key should be filtered out."""
+        mock_client.get.return_value = {
+            "response": {
+                "total": 1,
+                "publishedfiledetails": [
+                    {
+                        "publishedfileid": "123",
+                        "title": "Test",
+                        "subscriptions": 100,
+                        "file_size": 1024,
+                        "vote_data": {"score": 0.9},
+                        # Tags with missing 'tag' key
+                        "tags": [{"tag": "Valid"}, {"other": "NoTag"}, {"tag": None}],
+                    }
+                ],
+            }
+        }
+
+        result = await workshop_service.search_workshop_items(app_id=730, format="json")
+        data = json.loads(result)
+
+        # Only "Valid" should be in tags, others should be filtered
+        assert data["items"][0]["tags"] == ["Valid"]

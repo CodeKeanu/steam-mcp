@@ -7,10 +7,14 @@ Reference: https://partner.steamgames.com/doc/webapi/IPublishedFileService
 """
 
 import json
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
+
+
+logger = logging.getLogger(__name__)
 
 
 # Query type mappings for sorting
@@ -35,11 +39,11 @@ def _format_file_size(size_bytes: int) -> str:
 
 
 def _format_timestamp(ts: int) -> str:
-    """Format Unix timestamp as readable date."""
-    if ts == 0:
+    """Format Unix timestamp as readable date (UTC)."""
+    if ts <= 0:
         return "Unknown"
     try:
-        return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+        return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     except (ValueError, OSError):
         return "Unknown"
 
@@ -144,7 +148,7 @@ class IPublishedFileService(BaseEndpoint):
                 msg += f" Tags: {', '.join(tags)}"
             msg += "\n\nThis game may not have Workshop support, or no items match your filters."
             if format == "json":
-                return json.dumps({"error": msg, "total": 0, "items": []})
+                return json.dumps({"error": msg})
             return msg
 
         if format == "json":
@@ -169,7 +173,7 @@ class IPublishedFileService(BaseEndpoint):
                             "votes_down": item.get("vote_data", {}).get("votes_down", 0),
                         },
                         "file_size_bytes": item.get("file_size", 0),
-                        "tags": [t.get("tag") for t in item.get("tags", [])],
+                        "tags": [t.get("tag") for t in item.get("tags", []) if t.get("tag")],
                         "time_created": item.get("time_created"),
                         "time_updated": item.get("time_updated"),
                     }
@@ -203,7 +207,7 @@ class IPublishedFileService(BaseEndpoint):
             rating_pct = f"{score * 100:.0f}%" if score else "N/A"
 
             # Tags
-            item_tags = [t.get("tag") for t in item.get("tags", [])]
+            item_tags = [t.get("tag") for t in item.get("tags", []) if t.get("tag")]
             tags_str = ", ".join(item_tags[:3]) if item_tags else "No tags"
             if len(item_tags) > 3:
                 tags_str += f" (+{len(item_tags) - 3})"
@@ -238,6 +242,15 @@ class IPublishedFileService(BaseEndpoint):
         format: str = "text",
     ) -> str:
         """Get detailed information about a Workshop item."""
+        # Validate input
+        if not workshop_id or not workshop_id.strip():
+            error_msg = "Workshop ID is required"
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
+
+        workshop_id = workshop_id.strip()
+
         try:
             result = await self.client.get(
                 "IPublishedFileService",
@@ -369,7 +382,8 @@ class IPublishedFileService(BaseEndpoint):
         name="get_workshop_collection",
         description=(
             "Get items from a Steam Workshop collection. "
-            "Returns collection name, description, and list of contained items."
+            "Returns collection name, description, and list of contained items. "
+            "Note: Item details are fetched for up to 50 items."
         ),
         supports_json=True,
         params={
@@ -386,6 +400,15 @@ class IPublishedFileService(BaseEndpoint):
         format: str = "text",
     ) -> str:
         """Get items from a Workshop collection."""
+        # Validate input
+        if not collection_id or not collection_id.strip():
+            error_msg = "Collection ID is required"
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
+
+        collection_id = collection_id.strip()
+
         # First, get the collection details
         try:
             collection_result = await self.client.get(
@@ -455,9 +478,9 @@ class IPublishedFileService(BaseEndpoint):
                     params=params,
                 )
                 child_items = child_result.get("response", {}).get("publishedfiledetails", [])
-            except Exception:
+            except Exception as e:
                 # If batch fetch fails, continue with just collection info
-                pass
+                logger.warning(f"Failed to fetch collection child items: {e}")
 
         if format == "json":
             data = {
