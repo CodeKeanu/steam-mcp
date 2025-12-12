@@ -172,6 +172,200 @@ class TestSearchWorkshopItems:
         assert "API connection failed" in result
 
 
+# --- search_workshop_collections tests ---
+
+
+class TestSearchWorkshopCollections:
+    """Tests for search_workshop_collections endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_search_returns_collections(self, workshop_service, mock_client):
+        """Should return Workshop collections for a game."""
+        mock_client.get.return_value = {
+            "response": {
+                "total": 2,
+                "publishedfiledetails": [
+                    {
+                        "publishedfileid": "111111",
+                        "title": "Ultimate Modpack",
+                        "file_description": "Collection of essential mods",
+                        "creator": "76561198000000001",
+                        "creator_name": "CollectorOne",
+                        "subscriptions": 10000,
+                        "favorited": 5000,
+                        "file_type": 2,  # Collection
+                        "vote_data": {"score": 0.95, "votes_up": 950, "votes_down": 50},
+                        "children": [
+                            {"publishedfileid": "1"},
+                            {"publishedfileid": "2"},
+                            {"publishedfileid": "3"},
+                        ],
+                        "time_created": 1609459200,
+                        "time_updated": 1704067200,
+                    },
+                    {
+                        "publishedfileid": "222222",
+                        "title": "Starter Pack",
+                        "file_description": "Beginner collection",
+                        "creator": "76561198000000002",
+                        "creator_name": "CollectorTwo",
+                        "subscriptions": 5000,
+                        "favorited": 2000,
+                        "file_type": 2,
+                        "vote_data": {"score": 0.80, "votes_up": 80, "votes_down": 20},
+                        "children": [{"publishedfileid": "4"}],
+                        "time_created": 1609459200,
+                        "time_updated": 1704067200,
+                    },
+                ],
+            }
+        }
+
+        result = await workshop_service.search_workshop_collections(app_id=730)
+
+        assert "Ultimate Modpack" in result
+        assert "Starter Pack" in result
+        assert "10,000" in result  # Subscriber count
+        assert "Items: 3" in result  # Item count
+        assert "CollectorOne" in result
+
+    @pytest.mark.asyncio
+    async def test_search_collections_with_query(self, workshop_service, mock_client):
+        """Should pass search query to API."""
+        mock_client.get.return_value = {
+            "response": {"total": 0, "publishedfiledetails": []}
+        }
+
+        await workshop_service.search_workshop_collections(
+            app_id=730, search_query="weapon skins"
+        )
+
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["search_text"] == "weapon skins"
+        assert call_args[1]["params"]["filetype"] == 2  # Collections only
+
+    @pytest.mark.asyncio
+    async def test_search_collections_empty_results(self, workshop_service, mock_client):
+        """Should handle no results gracefully."""
+        mock_client.get.return_value = {
+            "response": {"total": 0, "publishedfiledetails": []}
+        }
+
+        result = await workshop_service.search_workshop_collections(app_id=99999)
+
+        assert "No Workshop collections found" in result
+        assert "may not have Workshop collections" in result
+
+    @pytest.mark.asyncio
+    async def test_search_collections_json_format(self, workshop_service, mock_client):
+        """Should return JSON when format='json'."""
+        mock_client.get.return_value = {
+            "response": {
+                "total": 1,
+                "publishedfiledetails": [
+                    {
+                        "publishedfileid": "123",
+                        "title": "Test Collection",
+                        "file_description": "A test",
+                        "creator": "76561198000000001",
+                        "creator_name": "Tester",
+                        "subscriptions": 100,
+                        "favorited": 50,
+                        "file_type": 2,
+                        "vote_data": {"score": 0.9, "votes_up": 90, "votes_down": 10},
+                        "children": [{"publishedfileid": "1"}, {"publishedfileid": "2"}],
+                        "time_created": 1609459200,
+                        "time_updated": 1704067200,
+                    }
+                ],
+            }
+        }
+
+        result = await workshop_service.search_workshop_collections(
+            app_id=730, format="json"
+        )
+
+        data = json.loads(result)
+        assert data["app_id"] == 730
+        assert data["total_results"] == 1
+        assert len(data["collections"]) == 1
+        assert data["collections"][0]["collection_id"] == "123"
+        assert data["collections"][0]["name"] == "Test Collection"
+        assert data["collections"][0]["item_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_search_collections_sort_options(self, workshop_service, mock_client):
+        """Should map sort_by to correct query_type."""
+        mock_client.get.return_value = {
+            "response": {"total": 0, "publishedfiledetails": []}
+        }
+
+        for sort_by, expected_type in [
+            ("popular", 0),
+            ("trend", 1),
+            ("recent", 2),
+            ("rating", 3),
+        ]:
+            await workshop_service.search_workshop_collections(
+                app_id=730, sort_by=sort_by
+            )
+            call_args = mock_client.get.call_args
+            assert call_args[1]["params"]["query_type"] == expected_type
+
+    @pytest.mark.asyncio
+    async def test_search_collections_max_results_limit(
+        self, workshop_service, mock_client
+    ):
+        """Should cap max_results at 50."""
+        mock_client.get.return_value = {
+            "response": {"total": 0, "publishedfiledetails": []}
+        }
+
+        await workshop_service.search_workshop_collections(app_id=730, max_results=100)
+
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["numperpage"] == 50
+
+    @pytest.mark.asyncio
+    async def test_search_collections_api_error(self, workshop_service, mock_client):
+        """Should handle API errors gracefully."""
+        mock_client.get.side_effect = Exception("API connection failed")
+
+        result = await workshop_service.search_workshop_collections(app_id=730)
+
+        assert "Error" in result
+        assert "API connection failed" in result
+
+    @pytest.mark.asyncio
+    async def test_search_collections_handles_string_values(
+        self, workshop_service, mock_client
+    ):
+        """Should handle string numeric values from API."""
+        mock_client.get.return_value = {
+            "response": {
+                "total": "1",  # String
+                "publishedfiledetails": [
+                    {
+                        "publishedfileid": "123",
+                        "title": "String Collection",
+                        "subscriptions": "5000",  # String
+                        "favorited": "250",  # String
+                        "file_type": "2",  # String
+                        "vote_data": {"score": "0.95", "votes_up": "95", "votes_down": "5"},
+                        "children": [{"publishedfileid": "1"}],
+                        "time_created": "1609459200",
+                        "time_updated": "1704067200",
+                    }
+                ],
+            }
+        }
+
+        result = await workshop_service.search_workshop_collections(app_id=730)
+
+        assert "String Collection" in result
+        assert "5,000" in result  # Formatted with comma
+
+
 # --- get_workshop_item_details tests ---
 
 

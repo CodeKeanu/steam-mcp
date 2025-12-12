@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Text search and tag filtering support
     - Sort by popular, trending, recent, or rating
     - Returns subscriber counts, ratings, file sizes
+  - `search_workshop_collections` - Search Workshop collections by game
+    - Discover popular modpacks and curated item lists
+    - Sort by popular, trending, recent, or rating
+    - Text search support
+    - Returns collection name, item count, subscriber count
   - `get_workshop_item_details` - Get detailed Workshop item information
     - Full description, author info, dependencies
     - Subscriber/favorite counts, vote breakdown
@@ -30,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Optional `include_own` parameter to include owned apps
 
 ### Changed
-- Tool count increased from 30 to 35
+- Tool count increased from 30 to 36
 
 ## [v0.8.0] - 2025-12-11
 

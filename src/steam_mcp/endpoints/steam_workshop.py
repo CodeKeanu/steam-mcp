@@ -407,17 +407,170 @@ class IPublishedFileService(BaseEndpoint):
         return "\n".join(output)
 
     @endpoint(
+        name="search_workshop_collections",
+        description=(
+            "Search Steam Workshop for collections (curated item lists) by game. "
+            "Returns collections with name, subscriber count, and item count. "
+            "Use this to discover popular modpacks or curated content lists."
+        ),
+        supports_json=True,
+        params={
+            "app_id": {
+                "type": "integer",
+                "description": "Steam App ID of the game to search collections for",
+                "required": True,
+            },
+            "search_query": {
+                "type": "string",
+                "description": "Text search filter (optional)",
+                "required": False,
+            },
+            "sort_by": {
+                "type": "string",
+                "description": "Sort order: 'popular' (most voted), 'trend' (trending), 'recent' (newest), 'rating' (highest rated)",
+                "required": False,
+                "default": "popular",
+                "enum": ["popular", "trend", "recent", "rating"],
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum number of results to return (default: 10, max: 50)",
+                "required": False,
+                "default": 10,
+                "minimum": 1,
+                "maximum": 50,
+            },
+        },
+    )
+    async def search_workshop_collections(
+        self,
+        app_id: int,
+        search_query: str = "",
+        sort_by: str = "popular",
+        max_results: int = 10,
+        format: str = "text",
+    ) -> str:
+        """Search Steam Workshop for collections."""
+        query_type = QUERY_TYPES.get(sort_by, 0)
+
+        params: dict[str, Any] = {
+            "appid": app_id,
+            "query_type": query_type,
+            "filetype": 2,  # Collections only
+            "numperpage": min(max_results, 50),
+            "return_metadata": True,
+            "return_tags": True,
+            "return_vote_data": True,
+            "return_children": True,  # Get item count in collections
+        }
+
+        if search_query:
+            params["search_text"] = search_query
+
+        try:
+            result = await self.client.get(
+                "IPublishedFileService",
+                "QueryFiles",
+                version=1,
+                params=params,
+            )
+        except Exception as e:
+            error_msg = f"Error searching Workshop collections: {e}"
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
+
+        response = result.get("response", {})
+        collections = response.get("publishedfiledetails", [])
+        total = _safe_int(response.get("total", len(collections)))
+
+        if not collections:
+            msg = f"No Workshop collections found for app {app_id}."
+            if search_query:
+                msg += f" Search query: '{search_query}'"
+            msg += "\n\nThis game may not have Workshop collections, or no collections match your search."
+            if format == "json":
+                return json.dumps({"error": msg})
+            return msg
+
+        if format == "json":
+            data = {
+                "app_id": app_id,
+                "total_results": total,
+                "returned": len(collections),
+                "sort_by": sort_by,
+                "collections": [
+                    {
+                        "collection_id": coll.get("publishedfileid"),
+                        "name": coll.get("title", "Untitled"),
+                        "description": (coll.get("short_description") or coll.get("file_description", ""))[:300],
+                        "author_steam_id": coll.get("creator"),
+                        "author_name": coll.get("creator_name"),
+                        "preview_url": coll.get("preview_url"),
+                        "subscriber_count": _safe_int(coll.get("subscriptions")),
+                        "favorited_count": _safe_int(coll.get("favorited")),
+                        "item_count": len(coll.get("children", [])),
+                        "vote_data": {
+                            "score": _safe_float(coll.get("vote_data", {}).get("score")),
+                            "votes_up": _safe_int(coll.get("vote_data", {}).get("votes_up")),
+                            "votes_down": _safe_int(coll.get("vote_data", {}).get("votes_down")),
+                        },
+                        "time_created": _safe_int(coll.get("time_created")),
+                        "time_updated": _safe_int(coll.get("time_updated")),
+                    }
+                    for coll in collections
+                ],
+            }
+            return json.dumps(data, indent=2)
+
+        # Text format
+        output = [
+            f"Steam Workshop Collections for App {app_id}",
+            f"Total: {total} collections | Showing: {len(collections)} | Sort: {sort_by}",
+        ]
+
+        if search_query:
+            output.append(f"Search: '{search_query}'")
+        output.append("")
+
+        for coll in collections:
+            coll_id = coll.get("publishedfileid", "?")
+            name = coll.get("title", "Untitled")
+            author = coll.get("creator_name", "Unknown")
+            subs = _safe_int(coll.get("subscriptions"))
+            item_count = len(coll.get("children", []))
+
+            vote_data = coll.get("vote_data", {})
+            score = _safe_float(vote_data.get("score"))
+            rating_pct = f"{score * 100:.0f}%" if score else "N/A"
+
+            desc = (coll.get("short_description") or coll.get("file_description", ""))[:100]
+            if len(desc) == 100:
+                desc += "..."
+
+            output.append(
+                f"[{coll_id}] {name}\n"
+                f"    By: {author} | Items: {item_count} | Subscribers: {subs:,} | Rating: {rating_pct}"
+            )
+            if desc:
+                output.append(f"    {desc}")
+            output.append("")
+
+        return "\n".join(output)
+
+    @endpoint(
         name="get_workshop_collection",
         description=(
             "Get items from a Steam Workshop collection. "
             "Returns collection name, description, and list of contained items. "
+            "Use 'search_workshop_collections' first to find collection IDs. "
             "Note: Item details are fetched for up to 50 items."
         ),
         supports_json=True,
         params={
             "collection_id": {
                 "type": "string",
-                "description": "The Workshop collection ID",
+                "description": "The Workshop collection ID (use search_workshop_collections to find IDs)",
                 "required": True,
             },
         },
