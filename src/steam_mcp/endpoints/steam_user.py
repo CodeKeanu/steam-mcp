@@ -269,7 +269,7 @@ class ISteamUser(BaseEndpoint):
                 "This may indicate a private profile or an account with no friends."
             )
             if format == "json":
-                return json.dumps({"error": error_msg, "steam_id": normalized_id, "friends": []})
+                return json.dumps({"error": error_msg})
             return error_msg
 
         if format == "json":

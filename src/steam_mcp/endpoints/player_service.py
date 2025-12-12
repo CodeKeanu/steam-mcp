@@ -97,7 +97,7 @@ class IPlayerService(BaseEndpoint):
                 "This may indicate a private profile or an account with no games."
             )
             if format == "json":
-                return json.dumps({"error": error_msg, "steam_id": normalized_id, "games": []})
+                return json.dumps({"error": error_msg})
             return error_msg
 
         # Sort games

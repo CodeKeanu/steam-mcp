@@ -115,7 +115,7 @@ class ISteamUserStats(BaseEndpoint):
         if not achievements:
             msg = f"No achievements found for {game_name}."
             if format == "json":
-                return json.dumps({"error": msg, "steam_id": normalized_id, "app_id": app_id, "achievements": []})
+                return json.dumps({"error": msg})
             return msg
 
         # Count unlocked
