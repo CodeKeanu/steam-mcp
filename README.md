@@ -18,7 +18,7 @@ Once set up, you can ask Claude things like:
 - "Show my pending trade offers"
 - "What's the current price for an AK-47 Redline?"
 
-The server includes 30 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, and trading/market data.
+The server includes 32 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, trading/market data, and family sharing.
 
 ---
 
@@ -179,7 +179,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (30 total)
+## Available Tools (32 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -252,6 +252,13 @@ No registration needed - just drop in the file and restart.
 | `get_trade_history` | View completed trade history |
 | `get_market_listings` | Check current market prices for items |
 | `check_market_eligibility` | Check if a user can use the Steam Market |
+
+### Family Sharing (IFamilyGroupsService) - 2 tools
+
+| Tool | What it does |
+|------|--------------|
+| `get_family_group` | Get family group membership, members, and roles |
+| `get_shared_library_apps` | Get games available through family sharing |
 
 ---
 
