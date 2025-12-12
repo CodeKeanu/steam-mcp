@@ -9,32 +9,10 @@ Reference: https://partner.steamgames.com/doc/webapi/IFamilyGroupsService
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
-from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
 
 class IFamilyGroupsService(BaseEndpoint):
     """IFamilyGroupsService API endpoints for family sharing features."""
-
-    async def _resolve_steam_id(self, steam_id: str) -> str:
-        """
-        Resolve steam_id, handling 'me'/'my' shortcuts.
-
-        Returns:
-            Normalized SteamID64 or error message starting with "Error"
-        """
-        steam_id_lower = steam_id.strip().lower()
-        if steam_id_lower in ("me", "my", "myself", "mine"):
-            if not self.client.owner_steam_id:
-                return (
-                    "Error: No owner Steam ID configured. "
-                    "Set STEAM_USER_ID environment variable to use 'me'/'my' shortcuts."
-                )
-            return self.client.owner_steam_id
-
-        try:
-            return await normalize_steam_id(steam_id, self.client)
-        except SteamIDError as e:
-            return f"Error resolving Steam ID: {e}"
 
     @endpoint(
         name="get_family_group",

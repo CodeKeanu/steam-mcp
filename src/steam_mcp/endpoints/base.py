@@ -41,6 +41,7 @@ from typing import Any, Callable, Coroutine, TypeVar
 from mcp.types import Tool, TextContent
 
 from steam_mcp.client import SteamClient
+from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
 
 logger = logging.getLogger(__name__)
@@ -346,6 +347,34 @@ class BaseEndpoint(metaclass=BaseEndpointMeta):
             client: SteamClient instance for API calls
         """
         self.client = client
+
+    async def _resolve_steam_id(self, steam_id: str) -> str:
+        """
+        Resolve steam_id, handling 'me'/'my' shortcuts.
+
+        This is a shared utility method for all endpoints that work with Steam IDs.
+        It handles the common pattern of accepting 'me'/'my' shortcuts and normalizing
+        various Steam ID formats.
+
+        Args:
+            steam_id: Steam ID in any format, or 'me'/'my' for owner's profile
+
+        Returns:
+            Normalized SteamID64, or error message starting with "Error"
+        """
+        steam_id_lower = steam_id.strip().lower()
+        if steam_id_lower in ("me", "my", "myself", "mine"):
+            if not self.client.owner_steam_id:
+                return (
+                    "Error: No owner Steam ID configured. "
+                    "Set STEAM_USER_ID environment variable to use 'me'/'my' shortcuts."
+                )
+            return self.client.owner_steam_id
+
+        try:
+            return await normalize_steam_id(steam_id, self.client)
+        except SteamIDError as e:
+            return f"Error resolving Steam ID: {e}"
 
     @classmethod
     def get_tools(cls) -> list[Tool]:

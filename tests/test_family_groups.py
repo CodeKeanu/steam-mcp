@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from steam_mcp.endpoints.family_groups import IFamilyGroupsService
-from steam_mcp.utils.steam_id import SteamIDError
+from steam_mcp.endpoints.base import SteamIDError
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ class TestGetFamilyGroup:
         }
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -63,7 +63,7 @@ class TestGetFamilyGroup:
         mock_client.get.return_value = {"response": {}}
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -78,7 +78,7 @@ class TestGetFamilyGroup:
         mock_client.get.side_effect = Exception("401 Unauthorized")
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -91,7 +91,7 @@ class TestGetFamilyGroup:
     async def test_invalid_steam_id_returns_error(self, family_service):
         """Invalid Steam ID should return error."""
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=SteamIDError("Invalid Steam ID"),
         ):
@@ -147,7 +147,7 @@ class TestGetFamilyGroup:
         }
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -182,7 +182,7 @@ class TestGetSharedLibraryApps:
         }
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -200,7 +200,7 @@ class TestGetSharedLibraryApps:
         mock_client.get.return_value = {"response": {"apps": []}}
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -214,7 +214,7 @@ class TestGetSharedLibraryApps:
         mock_client.get.side_effect = Exception("403 Forbidden")
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -239,7 +239,7 @@ class TestGetSharedLibraryApps:
         }
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -253,7 +253,7 @@ class TestGetSharedLibraryApps:
         mock_client.get.return_value = {"response": {"apps": []}}
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -292,7 +292,7 @@ class TestGetSharedLibraryApps:
         }
 
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -305,7 +305,7 @@ class TestGetSharedLibraryApps:
     async def test_invalid_steam_id_returns_error(self, family_service):
         """Invalid Steam ID should return error."""
         with patch(
-            "steam_mcp.endpoints.family_groups.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=SteamIDError("Invalid Steam ID"),
         ):
