@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Family Sharing Integration** (`family_groups.py`)
+  - `get_family_group` - Get family group membership information
+    - Returns family members, roles (Adult/Child/Member), and cooldown status
+    - Shows available slots in the family group
+  - `get_shared_library_apps` - Get games available through family sharing
+    - Shows shared games grouped by owner
+    - Indicates exclusion reasons (not shareable, already owned, etc.)
+    - Optional `include_own` parameter to include owned apps
+
+### Changed
+- Tool count increased from 30 to 32
+
 ## [v0.8.0] - 2025-12-11
 
 ### Added
