@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Steam Workshop Integration** (`steam_workshop.py`)
+  - `search_workshop_items` - Search Workshop mods by game
+    - Text search and tag filtering support
+    - Sort by popular, trending, recent, or rating
+    - Returns subscriber counts, ratings, file sizes
+  - `get_workshop_item_details` - Get detailed Workshop item information
+    - Full description, author info, dependencies
+    - Subscriber/favorite counts, vote breakdown
+    - Creation and update timestamps
+  - `get_workshop_collection` - Get items from a Workshop collection
+    - Collection metadata and item list
+    - Batch fetches item details
 - **Family Sharing Integration** (`family_groups.py`)
   - `get_family_group` - Get family group membership information
     - Returns family members, roles (Adult/Child/Member), and cooldown status
@@ -18,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Optional `include_own` parameter to include owned apps
 
 ### Changed
-- Tool count increased from 30 to 32
+- Tool count increased from 30 to 35
 
 ## [v0.8.0] - 2025-12-11
 
