@@ -463,7 +463,7 @@ class IPublishedFileService(BaseEndpoint):
         params: dict[str, Any] = {
             "appid": app_id,
             "query_type": query_type,
-            "filetype": 2,  # Collections only
+            "filetype": 1,  # Collections (1=Collections, 2=Art, 0=Items)
             "numperpage": min(max_results, 50),
             "return_metadata": True,
             "return_tags": True,

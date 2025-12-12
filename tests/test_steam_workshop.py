@@ -242,7 +242,7 @@ class TestSearchWorkshopCollections:
 
         call_args = mock_client.get.call_args
         assert call_args[1]["params"]["search_text"] == "weapon skins"
-        assert call_args[1]["params"]["filetype"] == 2  # Collections only
+        assert call_args[1]["params"]["filetype"] == 1  # Collections only
 
     @pytest.mark.asyncio
     async def test_search_collections_with_tags(self, workshop_service, mock_client):
@@ -258,7 +258,7 @@ class TestSearchWorkshopCollections:
         call_args = mock_client.get.call_args
         assert call_args[1]["params"]["requiredtags[0]"] == "Maps"
         assert call_args[1]["params"]["requiredtags[1]"] == "Competitive"
-        assert call_args[1]["params"]["filetype"] == 2
+        assert call_args[1]["params"]["filetype"] == 1  # Collections only
 
     @pytest.mark.asyncio
     async def test_search_collections_empty_results(self, workshop_service, mock_client):
