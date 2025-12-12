@@ -572,3 +572,157 @@ class TestTagFiltering:
 
         # Only "Valid" should be in tags, others should be filtered
         assert data["items"][0]["tags"] == ["Valid"]
+
+
+class TestStringTypeCoercion:
+    """Tests for handling string values from Steam API (real API returns strings for some numeric fields)."""
+
+    @pytest.mark.asyncio
+    async def test_search_handles_string_numeric_values(self, workshop_service, mock_client):
+        """API may return numeric fields as strings - should not raise TypeError."""
+        mock_client.get.return_value = {
+            "response": {
+                "total": 1,
+                "publishedfiledetails": [
+                    {
+                        "publishedfileid": "123456",
+                        "title": "String Values Mod",
+                        "subscriptions": "5000",  # String instead of int
+                        "favorited": "250",  # String instead of int
+                        "file_size": "1048576",  # String instead of int
+                        "vote_data": {"score": "0.95"},  # String instead of float
+                        "tags": [{"tag": "Maps"}],
+                        "time_created": "1609459200",  # String instead of int
+                    }
+                ],
+            }
+        }
+
+        # Should not raise "'<' not supported between instances of 'str' and 'int'"
+        result = await workshop_service.search_workshop_items(app_id=730)
+
+        assert "String Values Mod" in result
+        assert "5,000" in result  # Formatted with comma
+        assert "1.0 MB" in result  # File size formatted
+
+    @pytest.mark.asyncio
+    async def test_item_details_handles_string_values(self, workshop_service, mock_client):
+        """get_workshop_item_details should handle string numeric values."""
+        mock_client.get.return_value = {
+            "response": {
+                "publishedfiledetails": [
+                    {
+                        "result": "1",  # String instead of int
+                        "publishedfileid": "999",
+                        "title": "Test Item",
+                        "file_description": "A test item",
+                        "consumer_appid": "730",
+                        "creator": "76561198000000001",
+                        "subscriptions": "10000",
+                        "favorited": "500",
+                        "views": "50000",
+                        "file_size": "2097152",
+                        "vote_data": {
+                            "score": "0.88",
+                            "votes_up": "100",
+                            "votes_down": "10",
+                        },
+                        "time_created": "1609459200",
+                        "time_updated": "1704067200",
+                        "tags": [],
+                    }
+                ]
+            }
+        }
+
+        result = await workshop_service.get_workshop_item_details(workshop_id="999")
+
+        assert "Test Item" in result
+        assert "10,000" in result  # subscribers formatted
+        assert "2.0 MB" in result  # file size
+        assert "88%" in result  # rating
+
+    @pytest.mark.asyncio
+    async def test_collection_handles_string_values(self, workshop_service, mock_client):
+        """get_workshop_collection should handle string numeric values."""
+        mock_client.get.side_effect = [
+            {
+                "response": {
+                    "publishedfiledetails": [
+                        {
+                            "result": "1",
+                            "publishedfileid": "888",
+                            "title": "Test Collection",
+                            "file_description": "Collection desc",
+                            "file_type": "2",  # String instead of int
+                            "consumer_appid": "730",
+                            "creator": "76561198000000001",
+                            "subscriptions": "3000",
+                            "children": [{"publishedfileid": "111"}],
+                        }
+                    ]
+                }
+            },
+            {
+                "response": {
+                    "publishedfiledetails": [
+                        {
+                            "result": "1",
+                            "publishedfileid": "111",
+                            "title": "Child Item",
+                            "subscriptions": "1500",
+                            "file_size": "512000",
+                            "vote_data": {"score": "0.75"},
+                        }
+                    ]
+                }
+            },
+        ]
+
+        result = await workshop_service.get_workshop_collection(collection_id="888")
+
+        assert "Test Collection" in result
+        assert "3,000" in result  # collection subscribers
+        assert "Child Item" in result
+        assert "1,500" in result  # child item subscribers
+
+    def test_safe_int_function(self):
+        """Test _safe_int helper function."""
+        from steam_mcp.endpoints.steam_workshop import _safe_int
+
+        assert _safe_int("123") == 123
+        assert _safe_int(456) == 456
+        assert _safe_int(None) == 0
+        assert _safe_int("") == 0
+        assert _safe_int("invalid") == 0
+        assert _safe_int(None, default=99) == 99
+
+    def test_safe_float_function(self):
+        """Test _safe_float helper function."""
+        from steam_mcp.endpoints.steam_workshop import _safe_float
+
+        assert _safe_float("0.95") == 0.95
+        assert _safe_float(0.88) == 0.88
+        assert _safe_float(None) == 0.0
+        assert _safe_float("") == 0.0
+        assert _safe_float("invalid") == 0.0
+        assert _safe_float(None, default=1.0) == 1.0
+
+    def test_format_file_size_string_input(self):
+        """_format_file_size should handle string input."""
+        from steam_mcp.endpoints.steam_workshop import _format_file_size
+
+        assert _format_file_size("1048576") == "1.0 MB"
+        assert _format_file_size("") == "0 B"
+        assert _format_file_size(None) == "0 B"
+        assert _format_file_size("invalid") == "Unknown size"
+
+    def test_format_timestamp_string_input(self):
+        """_format_timestamp should handle string input."""
+        from steam_mcp.endpoints.steam_workshop import _format_timestamp
+
+        assert "2021-01-01" in _format_timestamp("1609459200")
+        assert _format_timestamp("0") == "Unknown"
+        assert _format_timestamp("") == "Unknown"
+        assert _format_timestamp(None) == "Unknown"
+        assert _format_timestamp("invalid") == "Unknown"

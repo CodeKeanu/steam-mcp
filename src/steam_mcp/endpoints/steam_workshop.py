@@ -26,8 +26,32 @@ QUERY_TYPES = {
 }
 
 
-def _format_file_size(size_bytes: int) -> str:
+def _safe_int(value: Any, default: int = 0) -> int:
+    """Safely convert value to int, handling strings from API."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    """Safely convert value to float, handling strings from API."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _format_file_size(size_bytes: int | str | None) -> str:
     """Format file size in human readable form."""
+    try:
+        size_bytes = int(size_bytes) if size_bytes else 0
+    except (ValueError, TypeError):
+        return "Unknown size"
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
@@ -38,8 +62,12 @@ def _format_file_size(size_bytes: int) -> str:
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
-def _format_timestamp(ts: int) -> str:
+def _format_timestamp(ts: int | str | None) -> str:
     """Format Unix timestamp as readable date (UTC)."""
+    try:
+        ts = int(ts) if ts else 0
+    except (ValueError, TypeError):
+        return "Unknown"
     if ts <= 0:
         return "Unknown"
     try:
@@ -197,13 +225,13 @@ class IPublishedFileService(BaseEndpoint):
         for item in items:
             workshop_id = item.get("publishedfileid", "?")
             title = item.get("title", "Untitled")
-            subs = item.get("subscriptions", 0)
-            favorites = item.get("favorited", 0)
+            subs = _safe_int(item.get("subscriptions"))
+            favorites = _safe_int(item.get("favorited"))
             file_size = item.get("file_size", 0)
 
             # Vote data
             vote_data = item.get("vote_data", {})
-            score = vote_data.get("score", 0)
+            score = _safe_float(vote_data.get("score"))
             rating_pct = f"{score * 100:.0f}%" if score else "N/A"
 
             # Tags
@@ -283,7 +311,7 @@ class IPublishedFileService(BaseEndpoint):
         item = items[0]
 
         # Check for error result (item not found or private)
-        if item.get("result") != 1:
+        if _safe_int(item.get("result")) != 1:
             error_msg = f"Workshop item {workshop_id} not found or is private."
             if format == "json":
                 return json.dumps({"error": error_msg})
@@ -329,15 +357,15 @@ class IPublishedFileService(BaseEndpoint):
         app_id = item.get("consumer_appid", "Unknown")
         author_name = item.get("creator_name", item.get("creator", "Unknown"))
 
-        subs = item.get("subscriptions", 0)
-        favorites = item.get("favorited", 0)
-        views = item.get("views", 0)
+        subs = _safe_int(item.get("subscriptions"))
+        favorites = _safe_int(item.get("favorited"))
+        views = _safe_int(item.get("views"))
         file_size = item.get("file_size", 0)
 
         vote_data = item.get("vote_data", {})
-        score = vote_data.get("score", 0)
-        votes_up = vote_data.get("votes_up", 0)
-        votes_down = vote_data.get("votes_down", 0)
+        score = _safe_float(vote_data.get("score"))
+        votes_up = _safe_int(vote_data.get("votes_up"))
+        votes_down = _safe_int(vote_data.get("votes_down"))
         rating_pct = f"{score * 100:.0f}%" if score else "N/A"
 
         time_created = item.get("time_created", 0)
@@ -439,7 +467,7 @@ class IPublishedFileService(BaseEndpoint):
         collection = items[0]
 
         # Check if this is actually a collection (file_type 2 = collection)
-        file_type = collection.get("file_type", 0)
+        file_type = _safe_int(collection.get("file_type"))
         if file_type != 2:
             error_msg = f"Item {collection_id} is not a collection (file_type={file_type})."
             if format == "json":
@@ -447,7 +475,7 @@ class IPublishedFileService(BaseEndpoint):
             return error_msg
 
         # Check result status
-        if collection.get("result") != 1:
+        if _safe_int(collection.get("result")) != 1:
             error_msg = f"Collection {collection_id} not found or is private."
             if format == "json":
                 return json.dumps({"error": error_msg})
@@ -498,12 +526,12 @@ class IPublishedFileService(BaseEndpoint):
                     {
                         "workshop_id": item.get("publishedfileid"),
                         "title": item.get("title", "Untitled"),
-                        "subscriber_count": item.get("subscriptions", 0),
-                        "vote_score": item.get("vote_data", {}).get("score", 0),
-                        "file_size_bytes": item.get("file_size", 0),
+                        "subscriber_count": _safe_int(item.get("subscriptions")),
+                        "vote_score": _safe_float(item.get("vote_data", {}).get("score")),
+                        "file_size_bytes": _safe_int(item.get("file_size")),
                     }
                     for item in child_items
-                    if item.get("result") == 1  # Only include successful results
+                    if _safe_int(item.get("result")) == 1  # Only include successful results
                 ],
             }
             if len(children) > 50:
@@ -512,11 +540,12 @@ class IPublishedFileService(BaseEndpoint):
             return json.dumps(data, indent=2)
 
         # Text format
+        collection_subs = _safe_int(collection.get("subscriptions"))
         output = [
             f"Workshop Collection: {collection_name}",
             f"ID: {collection_id} | App: {collection.get('consumer_appid', 'Unknown')}",
             f"Author: {collection.get('creator_name', collection.get('creator', 'Unknown'))}",
-            f"Subscribers: {collection.get('subscriptions', 0):,}",
+            f"Subscribers: {collection_subs:,}",
             f"Items in collection: {len(children)}",
         ]
 
@@ -530,12 +559,12 @@ class IPublishedFileService(BaseEndpoint):
         output.append("")
 
         for item in child_items:
-            if item.get("result") != 1:
+            if _safe_int(item.get("result")) != 1:
                 continue
 
             item_id = item.get("publishedfileid", "?")
             item_title = item.get("title", "Untitled")
-            item_subs = item.get("subscriptions", 0)
+            item_subs = _safe_int(item.get("subscriptions"))
             item_size = item.get("file_size", 0)
 
             output.append(
