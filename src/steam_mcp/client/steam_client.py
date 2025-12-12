@@ -1,7 +1,7 @@
 """Steam API Client with rate limiting, caching, and error handling.
 
 This client provides a robust interface to the Steam Web API with:
-- Rate limiting to avoid hitting API limits
+- Rate limiting to avoid hitting API limits (global singleton by default)
 - TTL-based response caching to reduce API load
 - Automatic retry with exponential backoff
 - Consistent error handling across all endpoints
@@ -20,6 +20,12 @@ from steam_mcp.client.cache import CacheCategory, TTLCache
 
 
 logger = logging.getLogger(__name__)
+
+# Default rate limit (requests per second)
+DEFAULT_RATE_LIMIT = 10.0
+
+# Global rate limiter instance (singleton)
+_global_rate_limiter: "RateLimiter | None" = None
 
 
 class SteamAPIError(Exception):
@@ -67,6 +73,38 @@ class RateLimiter:
             self.last_request_time = time.monotonic()
 
 
+def get_global_rate_limiter() -> RateLimiter:
+    """
+    Get or create the global rate limiter singleton.
+
+    The rate limit can be configured via the STEAM_RATE_LIMIT environment variable.
+    Default is 10 requests per second.
+
+    Thread-safe due to GIL; RateLimiter.__init__ is synchronous so no async race.
+
+    Returns:
+        The shared global RateLimiter instance.
+    """
+    global _global_rate_limiter
+
+    if _global_rate_limiter is None:
+        rate_limit = float(os.getenv("STEAM_RATE_LIMIT", str(DEFAULT_RATE_LIMIT)))
+        _global_rate_limiter = RateLimiter(requests_per_second=rate_limit)
+        logger.debug(f"Created global rate limiter: {rate_limit} req/s")
+
+    return _global_rate_limiter
+
+
+def reset_global_rate_limiter() -> None:
+    """
+    Reset the global rate limiter.
+
+    This is primarily useful for testing to ensure a fresh state.
+    """
+    global _global_rate_limiter
+    _global_rate_limiter = None
+
+
 class SteamClient:
     """Async client for the Steam Web API."""
 
@@ -92,11 +130,12 @@ class SteamClient:
         self,
         api_key: str | None = None,
         owner_steam_id: str | None = None,
-        requests_per_second: float = 10.0,
+        rate_limiter: RateLimiter | None = None,
         max_retries: int = 3,
         timeout: float = 30.0,
         enable_cache: bool = True,
         cache_max_size: int = 1000,
+        requests_per_second: float | None = None,
     ):
         """
         Initialize Steam API client.
@@ -105,11 +144,14 @@ class SteamClient:
             api_key: Steam Web API key. If not provided, reads from STEAM_API_KEY env var.
             owner_steam_id: SteamID64 of the API key owner. If not provided, reads from
                            STEAM_USER_ID env var. This enables "get my profile" style queries.
-            requests_per_second: Rate limit for API requests.
+            rate_limiter: Optional custom RateLimiter instance. If not provided, uses the
+                         global shared rate limiter (configured via STEAM_RATE_LIMIT env var).
             max_retries: Maximum number of retry attempts for failed requests.
             timeout: Request timeout in seconds.
             enable_cache: Whether to enable response caching (default: True).
             cache_max_size: Maximum number of cached entries (default: 1000).
+            requests_per_second: Deprecated. Use rate_limiter or STEAM_RATE_LIMIT env var.
+                                Creates a dedicated RateLimiter for this client if provided.
         """
         self.api_key = api_key or os.getenv("STEAM_API_KEY")
         if not self.api_key:
@@ -120,7 +162,14 @@ class SteamClient:
 
         self.max_retries = max_retries
         self.timeout = timeout
-        self.rate_limiter = RateLimiter(requests_per_second)
+
+        # Rate limiter priority: explicit rate_limiter > requests_per_second > global
+        if rate_limiter is not None:
+            self.rate_limiter = rate_limiter
+        elif requests_per_second is not None:
+            self.rate_limiter = RateLimiter(requests_per_second=requests_per_second)
+        else:
+            self.rate_limiter = get_global_rate_limiter()
 
         # Initialize cache if enabled
         self._cache: TTLCache | None = None

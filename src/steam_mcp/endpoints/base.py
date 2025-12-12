@@ -58,6 +58,7 @@ class EndpointTool:
     input_schema: dict[str, Any]
     handler: Callable[..., Coroutine[Any, Any, str]]
     endpoint_class: type["BaseEndpoint"]
+    supports_json: bool = False
 
 
 @dataclass
@@ -206,6 +207,7 @@ def endpoint(
     name: str,
     description: str,
     params: dict[str, dict[str, Any] | EndpointParam] | None = None,
+    supports_json: bool = False,
 ) -> Callable[[F], F]:
     """
     Decorator to register a method as an MCP tool endpoint.
@@ -219,6 +221,8 @@ def endpoint(
         description: Human-readable description of what the tool does
         params: Dictionary of parameter definitions. Each parameter can be
                 a dict with keys: type, description, required, enum, default
+        supports_json: If True, adds a 'format' parameter that allows switching
+                       between 'text' (default) and 'json' output formats
 
     Returns:
         Decorated function
@@ -227,6 +231,7 @@ def endpoint(
         @endpoint(
             name="get_player_summary",
             description="Get Steam player profile",
+            supports_json=True,
             params={
                 "steam_id": {
                     "type": "string",
@@ -241,10 +246,22 @@ def endpoint(
                 },
             },
         )
-        async def get_player_summary(self, steam_id: str, include_avatar: bool = True) -> str:
+        async def get_player_summary(self, steam_id: str, include_avatar: bool = True, format: str = "text") -> str:
             ...
     """
     params = params or {}
+
+    # If supports_json, auto-add the format parameter
+    if supports_json:
+        params = dict(params)  # Make a copy to avoid mutating the original
+        params["format"] = {
+            "type": "string",
+            "description": "Output format: 'text' for human-readable output, 'json' for structured JSON",
+            "enum": ["text", "json"],
+            "default": "text",
+            "required": False,
+        }
+
     input_schema = _build_input_schema(params)
 
     def decorator(func: F) -> F:
@@ -255,6 +272,7 @@ def endpoint(
             "description": description,
             "input_schema": input_schema,
             "params": params,
+            "supports_json": supports_json,
         }
         return func
 
@@ -289,6 +307,7 @@ class BaseEndpointMeta(type):
                         input_schema=meta["input_schema"],
                         handler=attr_value,
                         endpoint_class=cls,  # type: ignore[arg-type]
+                        supports_json=meta.get("supports_json", False),
                     )
                     EndpointRegistry.register_tool(tool)
 
