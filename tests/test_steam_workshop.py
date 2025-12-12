@@ -245,6 +245,22 @@ class TestSearchWorkshopCollections:
         assert call_args[1]["params"]["filetype"] == 2  # Collections only
 
     @pytest.mark.asyncio
+    async def test_search_collections_with_tags(self, workshop_service, mock_client):
+        """Should pass tags to API."""
+        mock_client.get.return_value = {
+            "response": {"total": 0, "publishedfiledetails": []}
+        }
+
+        await workshop_service.search_workshop_collections(
+            app_id=730, tags=["Maps", "Competitive"]
+        )
+
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["requiredtags[0]"] == "Maps"
+        assert call_args[1]["params"]["requiredtags[1]"] == "Competitive"
+        assert call_args[1]["params"]["filetype"] == 2
+
+    @pytest.mark.asyncio
     async def test_search_collections_empty_results(self, workshop_service, mock_client):
         """Should handle no results gracefully."""
         mock_client.get.return_value = {

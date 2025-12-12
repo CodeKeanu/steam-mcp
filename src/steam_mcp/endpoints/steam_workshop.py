@@ -425,6 +425,12 @@ class IPublishedFileService(BaseEndpoint):
                 "description": "Text search filter (optional)",
                 "required": False,
             },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Filter by Workshop tags (e.g., 'Maps', 'Weapons', 'Characters')",
+                "required": False,
+            },
             "sort_by": {
                 "type": "string",
                 "description": "Sort order: 'popular' (most voted), 'trend' (trending), 'recent' (newest), 'rating' (highest rated)",
@@ -446,6 +452,7 @@ class IPublishedFileService(BaseEndpoint):
         self,
         app_id: int,
         search_query: str = "",
+        tags: list[str] | None = None,
         sort_by: str = "popular",
         max_results: int = 10,
         format: str = "text",
@@ -466,6 +473,10 @@ class IPublishedFileService(BaseEndpoint):
 
         if search_query:
             params["search_text"] = search_query
+
+        if tags:
+            for i, tag in enumerate(tags):
+                params[f"requiredtags[{i}]"] = tag
 
         try:
             result = await self.client.get(
@@ -488,7 +499,9 @@ class IPublishedFileService(BaseEndpoint):
             msg = f"No Workshop collections found for app {app_id}."
             if search_query:
                 msg += f" Search query: '{search_query}'"
-            msg += "\n\nThis game may not have Workshop collections, or no collections match your search."
+            if tags:
+                msg += f" Tags: {', '.join(tags)}"
+            msg += "\n\nThis game may not have Workshop collections, or no collections match your filters."
             if format == "json":
                 return json.dumps({"error": msg})
             return msg
@@ -531,6 +544,8 @@ class IPublishedFileService(BaseEndpoint):
 
         if search_query:
             output.append(f"Search: '{search_query}'")
+        if tags:
+            output.append(f"Tags: {', '.join(tags)}")
         output.append("")
 
         for coll in collections:
