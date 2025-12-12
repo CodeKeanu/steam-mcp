@@ -6,6 +6,7 @@ which handles player profiles, friends, bans, and identity resolution.
 Reference: https://partner.steamgames.com/doc/webapi/ISteamUser
 """
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -90,6 +91,7 @@ class ISteamUser(BaseEndpoint):
             "online status, and profile visibility. Accepts any Steam ID format "
             "(SteamID64, vanity URL, profile URL, etc.)."
         ),
+        supports_json=True,
         params={
             "steam_id": {
                 "type": "string",
@@ -103,18 +105,27 @@ class ISteamUser(BaseEndpoint):
             },
         },
     )
-    async def get_player_summary(self, steam_id: str) -> str:
+    async def get_player_summary(self, steam_id: str, format: str = "text") -> str:
         """Get player summary for a Steam user."""
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
+            if format == "json":
+                return json.dumps({"error": normalized_id})
             return normalized_id
 
         players = await self.client.get_player_summaries([normalized_id])
 
         if not players:
-            return f"Player not found for Steam ID: {steam_id}"
+            error_msg = f"Player not found for Steam ID: {steam_id}"
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
 
         player = players[0]
+        data = self._build_player_data(player)
+
+        if format == "json":
+            return json.dumps(data, indent=2)
         return self._format_player_summary(player)
 
     @endpoint(
@@ -212,6 +223,7 @@ class ISteamUser(BaseEndpoint):
             "Get the friend list for a Steam user. Note: This only works for "
             "users with public profiles. Returns friend Steam IDs and relationship info."
         ),
+        supports_json=True,
         params={
             "steam_id": {
                 "type": "string",
@@ -222,10 +234,12 @@ class ISteamUser(BaseEndpoint):
             },
         },
     )
-    async def get_friend_list(self, steam_id: str) -> str:
+    async def get_friend_list(self, steam_id: str, format: str = "text") -> str:
         """Get friend list for a Steam user."""
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
+            if format == "json":
+                return json.dumps({"error": normalized_id})
             return normalized_id
 
         try:
@@ -238,20 +252,41 @@ class ISteamUser(BaseEndpoint):
         except SteamAPIError as e:
             # 401 Unauthorized typically means private profile
             if e.status_code == 401:
-                return (
+                error_msg = (
                     f"Cannot access friend list for Steam ID {normalized_id}. "
                     "This profile's friend list is private."
                 )
+                if format == "json":
+                    return json.dumps({"error": error_msg})
+                return error_msg
             raise
 
         friends_list = result.get("friendslist", {}).get("friends", [])
 
         if not friends_list:
-            return (
+            error_msg = (
                 f"No friends found for Steam ID {normalized_id}. "
                 "This may indicate a private profile or an account with no friends."
             )
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
 
+        if format == "json":
+            data = {
+                "steam_id": normalized_id,
+                "total_friends": len(friends_list),
+                "friends": [
+                    {
+                        "steam_id": friend["steamid"],
+                        "friend_since": friend.get("friend_since"),
+                    }
+                    for friend in friends_list
+                ],
+            }
+            return json.dumps(data, indent=2)
+
+        # Text format
         output = [f"Friend list for {normalized_id} ({len(friends_list)} friends):\n"]
 
         for friend in friends_list[:MAX_FRIENDS_DISPLAY]:
@@ -345,6 +380,46 @@ class ISteamUser(BaseEndpoint):
             output.extend(errors)
 
         return "\n".join(output)
+
+    def _build_player_data(self, player: dict[str, Any]) -> dict[str, Any]:
+        """Build structured player data for JSON output."""
+        visibility_map = {1: "private", 2: "friends_only", 3: "public"}
+        status_map = {
+            0: "offline",
+            1: "online",
+            2: "busy",
+            3: "away",
+            4: "snooze",
+            5: "looking_to_trade",
+            6: "looking_to_play",
+        }
+
+        data: dict[str, Any] = {
+            "steam_id": player.get("steamid", "Unknown"),
+            "persona_name": player.get("personaname", "Unknown"),
+            "profile_url": player.get("profileurl", ""),
+            "visibility": visibility_map.get(
+                player.get("communityvisibilitystate", 1), "unknown"
+            ),
+            "status": status_map.get(player.get("personastate", 0), "unknown"),
+            "avatar_url": player.get("avatarfull", ""),
+        }
+
+        # Additional fields only available for public profiles
+        if player.get("communityvisibilitystate") == 3:
+            if player.get("realname"):
+                data["real_name"] = player["realname"]
+            if player.get("loccountrycode"):
+                data["country"] = player["loccountrycode"]
+            if player.get("gameextrainfo"):
+                data["currently_playing"] = {
+                    "name": player["gameextrainfo"],
+                    "app_id": player.get("gameid", ""),
+                }
+            if player.get("timecreated"):
+                data["account_created"] = player["timecreated"]
+
+        return data
 
     def _format_player_summary(self, player: dict[str, Any]) -> str:
         """Format a player summary for display."""

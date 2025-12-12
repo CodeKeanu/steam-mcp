@@ -9,6 +9,7 @@ References:
 """
 
 import asyncio
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -190,6 +191,7 @@ class ISteamApps(BaseEndpoint):
             "Get detailed information about a Steam app including description, "
             "price, genres, release date, and more. Uses the Steam Store API."
         ),
+        supports_json=True,
         params={
             "app_id": {
                 "type": "integer",
@@ -208,6 +210,7 @@ class ISteamApps(BaseEndpoint):
         self,
         app_id: int,
         country_code: str = "us",
+        format: str = "text",
     ) -> str:
         """Get detailed app information from the Store API."""
         try:
@@ -220,24 +223,33 @@ class ISteamApps(BaseEndpoint):
                 },
             )
         except Exception as e:
-            return f"Error fetching app details: {e}"
+            err = f"Error fetching app details: {e}"
+            if format == "json":
+                return json.dumps({"error": err})
+            return err
 
         app_data = result.get(str(app_id), {})
 
         if not app_data.get("success", False):
-            return f"App ID {app_id} not found or unavailable in region '{country_code}'."
+            err = f"App ID {app_id} not found or unavailable in region '{country_code}'."
+            if format == "json":
+                return json.dumps({"error": err})
+            return err
 
         data = app_data.get("data", {})
 
         if not data:
-            return f"No data available for App ID {app_id}."
+            err = f"No data available for App ID {app_id}."
+            if format == "json":
+                return json.dumps({"error": err})
+            return err
 
         name = data.get("name", "Unknown")
         app_type = data.get("type", "unknown")
         is_free = data.get("is_free", False)
         short_desc = data.get("short_description", "")
-        developers = ", ".join(data.get("developers", ["Unknown"]))
-        publishers = ", ".join(data.get("publishers", ["Unknown"]))
+        developers = data.get("developers", [])
+        publishers = data.get("publishers", [])
 
         # Release date
         release_info = data.get("release_date", {})
@@ -279,6 +291,48 @@ class ISteamApps(BaseEndpoint):
 
         # Metacritic
         metacritic = data.get("metacritic", {})
+
+        if format == "json":
+            json_data: dict[str, Any] = {
+                "app_id": app_id,
+                "name": name,
+                "type": app_type,
+                "is_free": is_free,
+                "short_description": short_desc,
+                "developers": developers,
+                "publishers": publishers,
+                "release_date": release_date,
+                "coming_soon": release_info.get("coming_soon", False),
+                "platforms": {
+                    "windows": platforms.get("windows", False),
+                    "mac": platforms.get("mac", False),
+                    "linux": platforms.get("linux", False),
+                },
+                "genres": genres,
+                "categories": categories,
+                "store_url": f"https://store.steampowered.com/app/{app_id}",
+            }
+            # Add price info
+            if is_free:
+                json_data["price"] = {"is_free": True}
+            elif price_info:
+                json_data["price"] = {
+                    "is_free": False,
+                    "currency": price_info.get("currency", ""),
+                    "initial": price_info.get("initial", 0),
+                    "final": price_info.get("final", 0),
+                    "discount_percent": price_info.get("discount_percent", 0),
+                    "final_formatted": price_info.get("final_formatted", ""),
+                }
+            # Add metacritic if available
+            if metacritic:
+                json_data["metacritic"] = {
+                    "score": metacritic.get("score"),
+                    "url": metacritic.get("url", ""),
+                }
+            return json.dumps(json_data, indent=2)
+
+        # Text format
         metacritic_str = ""
         if metacritic:
             score = metacritic.get("score", "N/A")
@@ -287,8 +341,8 @@ class ISteamApps(BaseEndpoint):
         output = [
             f"{name}",
             f"App ID: {app_id} | Type: {app_type.title()}",
-            f"Developer: {developers}",
-            f"Publisher: {publishers}",
+            f"Developer: {', '.join(developers) if developers else 'Unknown'}",
+            f"Publisher: {', '.join(publishers) if publishers else 'Unknown'}",
             f"Release Date: {release_date}",
             f"Price: {price_str}",
             f"Platforms: {platforms_str}",

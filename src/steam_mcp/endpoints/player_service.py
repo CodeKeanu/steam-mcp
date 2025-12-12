@@ -7,6 +7,7 @@ Reference: https://partner.steamgames.com/doc/webapi/IPlayerService
 """
 
 import asyncio
+import json
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
@@ -27,6 +28,7 @@ class IPlayerService(BaseEndpoint):
             "Returns game names, App IDs, and total playtime. "
             "Note: Only works for public profiles unless querying your own profile."
         ),
+        supports_json=True,
         params={
             "steam_id": {
                 "type": "string",
@@ -64,11 +66,14 @@ class IPlayerService(BaseEndpoint):
         include_free_games: bool = True,
         sort_by: str = "playtime",
         limit: int = 25,
+        format: str = "text",
     ) -> str:
         """Get owned games for a Steam user."""
         # Handle "me" / "my" shortcut
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
+            if format == "json":
+                return json.dumps({"error": normalized_id})
             return normalized_id
 
         result = await self.client.get(
@@ -87,10 +92,13 @@ class IPlayerService(BaseEndpoint):
         game_count = response.get("game_count", len(games))
 
         if not games:
-            return (
+            error_msg = (
                 f"No games found for Steam ID {normalized_id}.\n"
                 "This may indicate a private profile or an account with no games."
             )
+            if format == "json":
+                return json.dumps({"error": error_msg})
+            return error_msg
 
         # Sort games
         if sort_by == "playtime":
@@ -107,6 +115,30 @@ class IPlayerService(BaseEndpoint):
         # Determine display limit (0 = show all)
         display_limit = limit if limit > 0 else len(games)
 
+        if format == "json":
+            data = {
+                "steam_id": normalized_id,
+                "total_games": game_count,
+                "total_playtime_hours": round(total_hours, 1),
+                "sort_by": sort_by,
+                "games": [
+                    {
+                        "app_id": g.get("appid"),
+                        "name": g.get("name", f"App {g.get('appid', 'Unknown')}"),
+                        "playtime_minutes": g.get("playtime_forever", 0),
+                        "playtime_hours": round(g.get("playtime_forever", 0) / 60, 1),
+                        "playtime_2weeks_minutes": g.get("playtime_2weeks", 0),
+                        "last_played": g.get("rtime_last_played"),
+                    }
+                    for g in games[:display_limit]
+                ],
+            }
+            if len(games) > display_limit:
+                data["truncated"] = True
+                data["remaining_games"] = len(games) - display_limit
+            return json.dumps(data, indent=2)
+
+        # Text format
         output = [
             f"Game Library for {normalized_id}",
             f"Total Games: {game_count}",
