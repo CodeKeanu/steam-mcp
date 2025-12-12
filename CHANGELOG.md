@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.0] - 2025-12-12
+
 ### Added
 - **Steam Workshop Integration** (`steam_workshop.py`)
   - `search_workshop_items` - Search Workshop mods by game
@@ -235,7 +237,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.9.0...HEAD
+[v0.9.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.6.0...v0.7.0
