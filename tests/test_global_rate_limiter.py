@@ -88,6 +88,20 @@ class TestSteamClientRateLimiter:
         assert client.rate_limiter is custom_limiter
         assert client.rate_limiter is not get_global_rate_limiter()
 
+    def test_backward_compat_requests_per_second(self, mock_env):
+        """SteamClient should support deprecated requests_per_second param."""
+        client = SteamClient(requests_per_second=5.0)
+        # Should create a dedicated limiter, not use global
+        assert client.rate_limiter is not get_global_rate_limiter()
+        assert client.rate_limiter.requests_per_second == 5.0
+
+    def test_rate_limiter_takes_precedence_over_requests_per_second(self, mock_env):
+        """Explicit rate_limiter should take precedence over requests_per_second."""
+        custom_limiter = RateLimiter(requests_per_second=20.0)
+        client = SteamClient(rate_limiter=custom_limiter, requests_per_second=5.0)
+        assert client.rate_limiter is custom_limiter
+        assert client.rate_limiter.requests_per_second == 20.0
+
 
 class TestConcurrentAccess:
     """Tests for concurrent access to rate limiter."""

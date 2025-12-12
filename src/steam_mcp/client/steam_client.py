@@ -26,7 +26,6 @@ DEFAULT_RATE_LIMIT = 10.0
 
 # Global rate limiter instance (singleton)
 _global_rate_limiter: "RateLimiter | None" = None
-_global_rate_limiter_lock = asyncio.Lock()
 
 
 class SteamAPIError(Exception):
@@ -81,6 +80,8 @@ def get_global_rate_limiter() -> RateLimiter:
     The rate limit can be configured via the STEAM_RATE_LIMIT environment variable.
     Default is 10 requests per second.
 
+    Thread-safe due to GIL; RateLimiter.__init__ is synchronous so no async race.
+
     Returns:
         The shared global RateLimiter instance.
     """
@@ -134,6 +135,7 @@ class SteamClient:
         timeout: float = 30.0,
         enable_cache: bool = True,
         cache_max_size: int = 1000,
+        requests_per_second: float | None = None,
     ):
         """
         Initialize Steam API client.
@@ -148,6 +150,8 @@ class SteamClient:
             timeout: Request timeout in seconds.
             enable_cache: Whether to enable response caching (default: True).
             cache_max_size: Maximum number of cached entries (default: 1000).
+            requests_per_second: Deprecated. Use rate_limiter or STEAM_RATE_LIMIT env var.
+                                Creates a dedicated RateLimiter for this client if provided.
         """
         self.api_key = api_key or os.getenv("STEAM_API_KEY")
         if not self.api_key:
@@ -158,8 +162,14 @@ class SteamClient:
 
         self.max_retries = max_retries
         self.timeout = timeout
-        # Use provided rate limiter or global singleton
-        self.rate_limiter = rate_limiter if rate_limiter is not None else get_global_rate_limiter()
+
+        # Rate limiter priority: explicit rate_limiter > requests_per_second > global
+        if rate_limiter is not None:
+            self.rate_limiter = rate_limiter
+        elif requests_per_second is not None:
+            self.rate_limiter = RateLimiter(requests_per_second=requests_per_second)
+        else:
+            self.rate_limiter = get_global_rate_limiter()
 
         # Initialize cache if enabled
         self._cache: TTLCache | None = None
