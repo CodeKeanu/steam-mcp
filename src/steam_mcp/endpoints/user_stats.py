@@ -6,6 +6,8 @@ which handles achievements, game stats, and global achievement percentages.
 Reference: https://partner.steamgames.com/doc/webapi/ISteamUserStats
 """
 
+import json
+from datetime import datetime
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
@@ -26,6 +28,7 @@ class ISteamUserStats(BaseEndpoint):
             "Shows which achievements are unlocked and when. "
             "Note: Requires the player's game details to be public."
         ),
+        supports_json=True,
         params={
             "steam_id": {
                 "type": "string",
@@ -52,10 +55,13 @@ class ISteamUserStats(BaseEndpoint):
         steam_id: str,
         app_id: int,
         language: str = "english",
+        format: str = "text",
     ) -> str:
         """Get player achievements for a specific game."""
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
+            if format == "json":
+                return json.dumps({"error": normalized_id})
             return normalized_id
 
         try:
@@ -72,35 +78,45 @@ class ISteamUserStats(BaseEndpoint):
         except Exception as e:
             error_msg = str(e).lower()
             if "profile is not public" in error_msg or "private" in error_msg:
-                return (
-                    f"Cannot access achievements for Steam ID {normalized_id}.\n"
+                err = (
+                    f"Cannot access achievements for Steam ID {normalized_id}. "
                     "This player's game details are set to private."
                 )
+                if format == "json":
+                    return json.dumps({"error": err})
+                return err
             raise
 
         playerstats = result.get("playerstats", {})
 
         if not playerstats.get("success", False):
-            return (
-                f"Could not retrieve achievements for App ID {app_id}.\n"
+            err = (
+                f"Could not retrieve achievements for App ID {app_id}. "
                 "The game may not have achievements or the profile is private."
             )
+            if format == "json":
+                return json.dumps({"error": err})
+            return err
 
         # Verify the Steam ID matches (detect misrouted responses)
         response_steamid = playerstats.get("steamID")
         if response_steamid and response_steamid != normalized_id:
-            return (
-                f"Error: Steam API returned data for wrong player.\n"
-                f"Requested: {normalized_id}\n"
-                f"Received: {response_steamid}\n"
-                "This may be a Steam API issue. Please try again."
+            err = (
+                f"Error: Steam API returned data for wrong player. "
+                f"Requested: {normalized_id}, Received: {response_steamid}"
             )
+            if format == "json":
+                return json.dumps({"error": err})
+            return err
 
         game_name = playerstats.get("gameName", f"App {app_id}")
         achievements = playerstats.get("achievements", [])
 
         if not achievements:
-            return f"No achievements found for {game_name}."
+            msg = f"No achievements found for {game_name}."
+            if format == "json":
+                return json.dumps({"error": msg, "steam_id": normalized_id, "app_id": app_id, "achievements": []})
+            return msg
 
         # Count unlocked
         unlocked = [a for a in achievements if a.get("achieved", 0) == 1]
@@ -108,6 +124,29 @@ class ISteamUserStats(BaseEndpoint):
 
         completion_pct = (len(unlocked) / len(achievements)) * 100 if achievements else 0
 
+        if format == "json":
+            data = {
+                "steam_id": normalized_id,
+                "app_id": app_id,
+                "game_name": game_name,
+                "total_achievements": len(achievements),
+                "unlocked_count": len(unlocked),
+                "locked_count": len(locked),
+                "completion_percent": round(completion_pct, 1),
+                "achievements": [
+                    {
+                        "api_name": a.get("apiname", ""),
+                        "name": a.get("name", a.get("apiname", "Unknown")),
+                        "description": a.get("description", ""),
+                        "achieved": a.get("achieved", 0) == 1,
+                        "unlock_time": a.get("unlocktime") if a.get("unlocktime") else None,
+                    }
+                    for a in achievements
+                ],
+            }
+            return json.dumps(data, indent=2)
+
+        # Text format
         output = [
             f"Achievements for {game_name}",
             f"Player: {normalized_id}",
@@ -129,7 +168,6 @@ class ISteamUserStats(BaseEndpoint):
                 unlock_time = ach.get("unlocktime", 0)
 
                 if unlock_time:
-                    from datetime import datetime
                     unlock_str = datetime.fromtimestamp(unlock_time).strftime("%Y-%m-%d")
                 else:
                     unlock_str = "Unknown date"
