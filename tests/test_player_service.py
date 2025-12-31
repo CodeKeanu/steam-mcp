@@ -43,7 +43,7 @@ class TestFindUnplayedGamesWithFriendsValidation:
         """Friend ID matching user ID should be rejected."""
         # Both resolve to same ID
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -58,7 +58,7 @@ class TestFindUnplayedGamesWithFriendsValidation:
     async def test_invalid_steam_id_returns_error(self, player_service):
         """Invalid Steam ID should return error."""
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=SteamIDError("Invalid Steam ID"),
         ):
@@ -90,7 +90,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002"],
         ):
@@ -115,7 +115,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002"],
         ):
@@ -141,7 +141,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002", "76561198000000003"],
         ):
@@ -176,7 +176,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002", "76561198000000003"],
         ):
@@ -203,7 +203,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002", "76561198000000003"],
         ):
@@ -223,7 +223,7 @@ class TestFindUnplayedGamesWithFriendsLogic:
         ]
 
         with patch(
-            "steam_mcp.endpoints.player_service.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=["76561198000000001", "76561198000000002"],
         ):

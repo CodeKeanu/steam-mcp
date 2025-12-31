@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.0.0] - 2025-01-01
+
+### Added
+- Full test coverage for all 10 endpoint modules (36 tools total)
+  - Added `test_steam_user.py` (6 tools)
+  - Added `test_user_stats.py` (6 tools)
+  - Added `test_steam_news.py` (1 tool)
+
+### Changed
+- Updated version to 1.0.0 across all files
+- Changed development status from "Alpha" to "Production/Stable"
+
+### Fixed
+- Removed duplicate `_resolve_steam_id` methods in endpoint modules
+  - Consolidated to use base class implementation
+  - Affected files: steam_user.py, user_stats.py, player_service.py, steam_trading.py
+- Cleaned up unused imports after code consolidation
+
 ## [v0.9.0] - 2025-12-12
 
 ### Added
@@ -237,7 +255,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose configuration
 - Comprehensive README with usage instructions
 
-[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/CodeKeanu/steam-mcp/compare/v1.0.0...HEAD
+[v1.0.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.9.0...v1.0.0
 [v0.9.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/CodeKeanu/steam-mcp/compare/v0.7.0...v0.7.1

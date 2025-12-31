@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Any
 
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
-from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
 
 # Maximum achievements to display in detailed output
@@ -588,19 +587,3 @@ class ISteamUserStats(BaseEndpoint):
             output.append(f"  {stat_name}: {total_str}")
 
         return "\n".join(output)
-
-    async def _resolve_steam_id(self, steam_id: str) -> str:
-        """Resolve steam_id, handling 'me'/'my' shortcuts."""
-        steam_id_lower = steam_id.strip().lower()
-        if steam_id_lower in ("me", "my", "myself", "mine"):
-            if not self.client.owner_steam_id:
-                return (
-                    "Error: No owner Steam ID configured. "
-                    "Set STEAM_USER_ID environment variable to use 'me'/'my' shortcuts."
-                )
-            return self.client.owner_steam_id
-
-        try:
-            return await normalize_steam_id(steam_id, self.client)
-        except SteamIDError as e:
-            return f"Error resolving Steam ID: {e}"
