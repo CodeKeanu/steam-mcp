@@ -72,7 +72,7 @@ class TestGetWishlist:
                 steam_id="76561198000000001"
             )
 
-        assert "Steam Wishlist (2 games)" in result
+        assert "Steam Wishlist (2 total games)" in result
         assert "Counter-Strike 2" in result
         assert "Dota 2" in result
 

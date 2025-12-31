@@ -14,9 +14,6 @@ from steam_mcp.client import SteamAPIError
 from steam_mcp.endpoints.base import BaseEndpoint, endpoint
 from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
-# Maximum friends to display in output to avoid overwhelming responses
-MAX_FRIENDS_DISPLAY = 50
-
 
 class ISteamUser(BaseEndpoint):
     """ISteamUser API endpoints for player identity and profile data."""
@@ -232,9 +229,25 @@ class ISteamUser(BaseEndpoint):
                 ),
                 "required": True,
             },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of friends to return. Use 0 for all friends. Default is 50.",
+                "required": False,
+                "default": 50,
+                "minimum": 0,
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Number of friends to skip (for pagination). Default is 0.",
+                "required": False,
+                "default": 0,
+                "minimum": 0,
+            },
         },
     )
-    async def get_friend_list(self, steam_id: str, format: str = "text") -> str:
+    async def get_friend_list(
+        self, steam_id: str, limit: int = 50, offset: int = 0, format: str = "text"
+    ) -> str:
         """Get friend list for a Steam user."""
         normalized_id = await self._resolve_steam_id(steam_id)
         if normalized_id.startswith("Error"):
@@ -272,31 +285,42 @@ class ISteamUser(BaseEndpoint):
                 return json.dumps({"error": error_msg})
             return error_msg
 
+        # Apply pagination
+        total_friends = len(friends_list)
+        paginated_list = friends_list[offset:] if limit == 0 else friends_list[offset:offset + limit]
+
         if format == "json":
             data = {
                 "steam_id": normalized_id,
-                "total_friends": len(friends_list),
+                "total_friends": total_friends,
+                "offset": offset,
+                "limit": limit if limit > 0 else total_friends,
+                "returned_count": len(paginated_list),
                 "friends": [
                     {
                         "steam_id": friend["steamid"],
                         "friend_since": friend.get("friend_since"),
                     }
-                    for friend in friends_list
+                    for friend in paginated_list
                 ],
             }
             return json.dumps(data, indent=2)
 
         # Text format
-        output = [f"Friend list for {normalized_id} ({len(friends_list)} friends):\n"]
+        output = [f"Friend list for {normalized_id} ({total_friends} total friends):\n"]
 
-        for friend in friends_list[:MAX_FRIENDS_DISPLAY]:
+        if offset > 0:
+            output.append(f"Showing from offset {offset}:\n")
+
+        for friend in paginated_list:
             friend_since = friend.get("friend_since", "Unknown")
             output.append(
                 f"  - {friend['steamid']} (friends since: {friend_since})"
             )
 
-        if len(friends_list) > MAX_FRIENDS_DISPLAY:
-            output.append(f"\n  ... and {len(friends_list) - MAX_FRIENDS_DISPLAY} more friends")
+        remaining = total_friends - offset - len(paginated_list)
+        if remaining > 0:
+            output.append(f"\n  ... and {remaining} more friends (use offset to paginate)")
 
         return "\n".join(output)
 

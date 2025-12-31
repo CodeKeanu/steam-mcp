@@ -14,10 +14,6 @@ from steam_mcp.endpoints.base import BaseEndpoint, endpoint
 from steam_mcp.utils.steam_id import normalize_steam_id, SteamIDError
 
 
-# Maximum achievements to display in detailed output
-MAX_ACHIEVEMENTS_DISPLAY = 30
-
-
 class ISteamUserStats(BaseEndpoint):
     """ISteamUserStats API endpoints for achievements and game statistics."""
 
@@ -48,6 +44,20 @@ class ISteamUserStats(BaseEndpoint):
                 "required": False,
                 "default": "english",
             },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of achievements to return per section (unlocked/locked). Use 0 for all. Default is 30.",
+                "required": False,
+                "default": 30,
+                "minimum": 0,
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Number of achievements to skip in each section (for pagination). Default is 0.",
+                "required": False,
+                "default": 0,
+                "minimum": 0,
+            },
         },
     )
     async def get_player_achievements(
@@ -55,6 +65,8 @@ class ISteamUserStats(BaseEndpoint):
         steam_id: str,
         app_id: int,
         language: str = "english",
+        limit: int = 30,
+        offset: int = 0,
         format: str = "text",
     ) -> str:
         """Get player achievements for a specific game."""
@@ -118,11 +130,23 @@ class ISteamUserStats(BaseEndpoint):
                 return json.dumps({"error": msg})
             return msg
 
-        # Count unlocked
+        # Count unlocked and locked
         unlocked = [a for a in achievements if a.get("achieved", 0) == 1]
         locked = [a for a in achievements if a.get("achieved", 0) == 0]
 
+        # Sort unlocked by unlock time (most recent first)
+        unlocked_sorted = sorted(
+            unlocked,
+            key=lambda a: a.get("unlocktime", 0),
+            reverse=True
+        )
+
         completion_pct = (len(unlocked) / len(achievements)) * 100 if achievements else 0
+
+        # Apply pagination to each section
+        display_limit = limit if limit > 0 else len(achievements)
+        unlocked_paginated = unlocked_sorted[offset:offset + display_limit]
+        locked_paginated = locked[offset:offset + display_limit]
 
         if format == "json":
             data = {
@@ -133,15 +157,24 @@ class ISteamUserStats(BaseEndpoint):
                 "unlocked_count": len(unlocked),
                 "locked_count": len(locked),
                 "completion_percent": round(completion_pct, 1),
-                "achievements": [
+                "offset": offset,
+                "limit": display_limit,
+                "unlocked": [
                     {
                         "api_name": a.get("apiname", ""),
                         "name": a.get("name", a.get("apiname", "Unknown")),
                         "description": a.get("description", ""),
-                        "achieved": a.get("achieved", 0) == 1,
                         "unlock_time": a.get("unlocktime") if a.get("unlocktime") else None,
                     }
-                    for a in achievements
+                    for a in unlocked_paginated
+                ],
+                "locked": [
+                    {
+                        "api_name": a.get("apiname", ""),
+                        "name": a.get("name", a.get("apiname", "Unknown")),
+                        "description": a.get("description", ""),
+                    }
+                    for a in locked_paginated
                 ],
             }
             return json.dumps(data, indent=2)
@@ -154,15 +187,13 @@ class ISteamUserStats(BaseEndpoint):
             "",
         ]
 
+        if offset > 0:
+            output.append(f"Showing from offset {offset}:\n")
+
         # Show unlocked achievements first (most recent first by unlock time)
         if unlocked:
-            unlocked_sorted = sorted(
-                unlocked,
-                key=lambda a: a.get("unlocktime", 0),
-                reverse=True
-            )
-            output.append(f"Unlocked ({len(unlocked)}):")
-            for ach in unlocked_sorted[:MAX_ACHIEVEMENTS_DISPLAY]:
+            output.append(f"Unlocked ({len(unlocked)} total):")
+            for ach in unlocked_paginated:
                 name = ach.get("name", ach.get("apiname", "Unknown"))
                 desc = ach.get("description", "")
                 unlock_time = ach.get("unlocktime", 0)
@@ -177,14 +208,15 @@ class ISteamUserStats(BaseEndpoint):
                 else:
                     output.append(f"  ✓ {name} [{unlock_str}]")
 
-            if len(unlocked) > MAX_ACHIEVEMENTS_DISPLAY:
-                output.append(f"  ... and {len(unlocked) - MAX_ACHIEVEMENTS_DISPLAY} more unlocked")
+            remaining_unlocked = len(unlocked) - offset - len(unlocked_paginated)
+            if remaining_unlocked > 0:
+                output.append(f"  ... and {remaining_unlocked} more unlocked (use offset to paginate)")
             output.append("")
 
-        # Show a few locked achievements
+        # Show locked achievements
         if locked:
-            output.append(f"Locked ({len(locked)}):")
-            for ach in locked[:10]:
+            output.append(f"Locked ({len(locked)} total):")
+            for ach in locked_paginated:
                 name = ach.get("name", ach.get("apiname", "Unknown"))
                 desc = ach.get("description", "")
 
@@ -193,8 +225,9 @@ class ISteamUserStats(BaseEndpoint):
                 else:
                     output.append(f"  ○ {name}")
 
-            if len(locked) > 10:
-                output.append(f"  ... and {len(locked) - 10} more locked")
+            remaining_locked = len(locked) - offset - len(locked_paginated)
+            if remaining_locked > 0:
+                output.append(f"  ... and {remaining_locked} more locked (use offset to paginate)")
 
         return "\n".join(output)
 
