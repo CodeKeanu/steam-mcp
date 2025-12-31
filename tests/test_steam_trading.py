@@ -58,7 +58,7 @@ class TestGetTradeOffers:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -100,7 +100,7 @@ class TestGetTradeOffers:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -125,7 +125,7 @@ class TestGetTradeOffers:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -139,7 +139,7 @@ class TestGetTradeOffers:
     async def test_invalid_steam_id(self, econ_service):
         """Should return error for invalid Steam ID."""
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             side_effect=SteamIDError("Invalid Steam ID"),
         ):
@@ -194,7 +194,7 @@ class TestGetTradeHistory:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -219,7 +219,7 @@ class TestGetTradeHistory:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -298,7 +298,7 @@ class TestCheckMarketEligibility:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -321,7 +321,7 @@ class TestCheckMarketEligibility:
         }
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):
@@ -339,7 +339,7 @@ class TestCheckMarketEligibility:
         mock_client.get.return_value = {"response": {}}
 
         with patch(
-            "steam_mcp.endpoints.steam_trading.normalize_steam_id",
+            "steam_mcp.endpoints.base.normalize_steam_id",
             new_callable=AsyncMock,
             return_value="76561198000000001",
         ):

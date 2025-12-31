@@ -21,27 +21,6 @@ MAX_FRIENDS_DISPLAY = 50
 class ISteamUser(BaseEndpoint):
     """ISteamUser API endpoints for player identity and profile data."""
 
-    async def _resolve_steam_id(self, steam_id: str) -> str:
-        """
-        Resolve steam_id, handling 'me'/'my' shortcuts.
-
-        Returns:
-            Normalized SteamID64 or error message starting with "Error"
-        """
-        steam_id_lower = steam_id.strip().lower()
-        if steam_id_lower in ("me", "my", "myself", "mine"):
-            if not self.client.owner_steam_id:
-                return (
-                    "Error: No owner Steam ID configured. "
-                    "Set STEAM_USER_ID environment variable to use 'me'/'my' shortcuts."
-                )
-            return self.client.owner_steam_id
-
-        try:
-            return await normalize_steam_id(steam_id, self.client)
-        except SteamIDError as e:
-            return f"Error resolving Steam ID: {e}"
-
     @endpoint(
         name="get_my_steam_id",
         description=(
