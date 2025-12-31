@@ -18,7 +18,7 @@ Once set up, you can ask Claude things like:
 - "Show my pending trade offers"
 - "What's the current price for an AK-47 Redline?"
 
-The server includes 36 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, trading/market data, family sharing, and Steam Workshop.
+The server includes 38 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, trading/market data, family sharing, Steam Workshop, and cloud saves.
 
 ---
 
@@ -179,7 +179,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (36 total)
+## Available Tools (38 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -268,6 +268,13 @@ No registration needed - just drop in the file and restart.
 | `search_workshop_collections` | Search Workshop collections (curated item lists) by game with sorting |
 | `get_workshop_item_details` | Get full details on a Workshop item (description, subscribers, dependencies) |
 | `get_workshop_collection` | Get items from a Workshop collection |
+
+### Cloud Saves (ISteamRemoteStorage) - 2 tools
+
+| Tool | What it does |
+|------|--------------|
+| `list_cloud_files` | List cloud save files for a game (names, sizes, timestamps) |
+| `get_cloud_quota` | Get cloud storage usage and limits |
 
 ---
 

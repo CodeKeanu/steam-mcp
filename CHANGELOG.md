@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Steam Cloud Integration** (`cloud_saves.py`)
+  - `list_cloud_files` - List cloud save files for a specific game
+    - Shows file names, sizes, and modification timestamps
+    - Works with 'me'/'my' Steam ID shortcuts
+  - `get_cloud_quota` - Get cloud storage usage and limits
+    - Shows total quota, used space, available space
+    - Visual usage bar representation
+
+### Changed
+- Tool count increased from 36 to 38
+
 ## [v0.9.0] - 2025-12-12
 
 ### Added
