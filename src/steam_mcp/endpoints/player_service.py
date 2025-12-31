@@ -58,6 +58,13 @@ class IPlayerService(BaseEndpoint):
                 "default": 25,
                 "minimum": 0,
             },
+            "offset": {
+                "type": "integer",
+                "description": "Number of games to skip (for pagination). Default is 0.",
+                "required": False,
+                "default": 0,
+                "minimum": 0,
+            },
         },
     )
     async def get_owned_games(
@@ -66,6 +73,7 @@ class IPlayerService(BaseEndpoint):
         include_free_games: bool = True,
         sort_by: str = "playtime",
         limit: int = 25,
+        offset: int = 0,
         format: str = "text",
     ) -> str:
         """Get owned games for a Steam user."""
@@ -112,8 +120,9 @@ class IPlayerService(BaseEndpoint):
         total_minutes = sum(g.get("playtime_forever", 0) for g in games)
         total_hours = total_minutes / 60
 
-        # Determine display limit (0 = show all)
+        # Apply pagination
         display_limit = limit if limit > 0 else len(games)
+        paginated_games = games[offset:offset + display_limit]
 
         if format == "json":
             data = {
@@ -121,6 +130,9 @@ class IPlayerService(BaseEndpoint):
                 "total_games": game_count,
                 "total_playtime_hours": round(total_hours, 1),
                 "sort_by": sort_by,
+                "offset": offset,
+                "limit": display_limit,
+                "returned_count": len(paginated_games),
                 "games": [
                     {
                         "app_id": g.get("appid"),
@@ -130,12 +142,12 @@ class IPlayerService(BaseEndpoint):
                         "playtime_2weeks_minutes": g.get("playtime_2weeks", 0),
                         "last_played": g.get("rtime_last_played"),
                     }
-                    for g in games[:display_limit]
+                    for g in paginated_games
                 ],
             }
-            if len(games) > display_limit:
-                data["truncated"] = True
-                data["remaining_games"] = len(games) - display_limit
+            remaining = len(games) - offset - len(paginated_games)
+            if remaining > 0:
+                data["remaining_games"] = remaining
             return json.dumps(data, indent=2)
 
         # Text format
@@ -146,13 +158,15 @@ class IPlayerService(BaseEndpoint):
             "",
         ]
 
-        if display_limit < len(games):
-            output.append(f"Top {display_limit} games (sorted by {sort_by}):")
+        if offset > 0:
+            output.append(f"Showing from offset {offset} (sorted by {sort_by}):")
+        elif len(paginated_games) < len(games):
+            output.append(f"Top {len(paginated_games)} games (sorted by {sort_by}):")
         else:
             output.append(f"All games (sorted by {sort_by}):")
         output.append("")
 
-        for game in games[:display_limit]:
+        for game in paginated_games:
             name = game.get("name", f"App {game.get('appid', 'Unknown')}")
             appid = game.get("appid", "?")
             playtime_mins = game.get("playtime_forever", 0)
@@ -178,8 +192,9 @@ class IPlayerService(BaseEndpoint):
 
             output.append(f"  [{appid}] {name}: {playtime_str}{recent_str}")
 
-        if len(games) > display_limit:
-            output.append(f"\n  ... and {len(games) - display_limit} more games")
+        remaining = len(games) - offset - len(paginated_games)
+        if remaining > 0:
+            output.append(f"\n  ... and {remaining} more games (use offset to paginate)")
 
         return "\n".join(output)
 

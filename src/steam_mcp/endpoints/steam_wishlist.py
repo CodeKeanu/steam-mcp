@@ -152,12 +152,28 @@ class ISteamWishlist(BaseEndpoint):
                 "required": False,
                 "default": "us",
             },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of wishlist items to return. Use 0 for all. Default is 50.",
+                "required": False,
+                "default": 50,
+                "minimum": 0,
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Number of items to skip (for pagination). Default is 0.",
+                "required": False,
+                "default": 0,
+                "minimum": 0,
+            },
         },
     )
     async def get_wishlist(
         self,
         steam_id: str,
         country_code: str = "us",
+        limit: int = 50,
+        offset: int = 0,
     ) -> str:
         """Get a user's Steam wishlist with current pricing."""
         # Normalize Steam ID
@@ -192,13 +208,21 @@ class ISteamWishlist(BaseEndpoint):
 
         items.sort(key=lambda x: (x[0], x[1].lower()))
 
+        # Apply pagination
+        total_items = len(items)
+        display_limit = limit if limit > 0 else total_items
+        paginated_items = items[offset:offset + display_limit]
+
         output = [
-            f"Steam Wishlist ({len(items)} games)",
+            f"Steam Wishlist ({total_items} total games)",
             f"Prices shown for region: {country_code.upper()}",
-            "",
         ]
 
-        for priority, name, info in items:
+        if offset > 0:
+            output.append(f"Showing from offset {offset}")
+        output.append("")
+
+        for priority, name, info in paginated_items:
             app_id = info["app_id"]
             details = info["details"]
             is_free = details.get("is_free", False)
@@ -223,6 +247,10 @@ class ISteamWishlist(BaseEndpoint):
                 if priority_str:
                     line += f" (Priority: {priority_str})"
                 output.append(line)
+
+        remaining = total_items - offset - len(paginated_items)
+        if remaining > 0:
+            output.append(f"\n  ... and {remaining} more items (use offset to paginate)")
 
         return "\n".join(output)
 
