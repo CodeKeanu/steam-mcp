@@ -17,8 +17,9 @@ Once set up, you can ask Claude things like:
 - "What's the latest news for Team Fortress 2?"
 - "Show my pending trade offers"
 - "What's the current price for an AK-47 Redline?"
+- "Show me CS2 servers with players on de_dust2"
 
-The server includes 36 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, trading/market data, family sharing, and Steam Workshop.
+The server includes 38 tools covering player profiles, game libraries, achievements, stats, reviews, wishlists, news, community guides, trading/market data, family sharing, Steam Workshop, and game server status.
 
 ---
 
@@ -179,7 +180,7 @@ No registration needed - just drop in the file and restart.
 
 ---
 
-## Available Tools (36 total)
+## Available Tools (38 total)
 
 ### Player Profiles (ISteamUser) - 6 tools
 
@@ -268,6 +269,13 @@ No registration needed - just drop in the file and restart.
 | `search_workshop_collections` | Search Workshop collections (curated item lists) by game with sorting |
 | `get_workshop_item_details` | Get full details on a Workshop item (description, subscribers, dependencies) |
 | `get_workshop_collection` | Get items from a Workshop collection |
+
+### Game Servers (IGameServersService) - 2 tools
+
+| Tool | What it does |
+|------|--------------|
+| `get_game_servers` | List game servers for a game with filters (map, players, region) |
+| `query_server_status` | Get detailed status of a specific server by address |
 
 ---
 

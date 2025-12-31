@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Game Server Status** (`game_servers.py`)
+  - `get_game_servers` - List game servers for a specific game
+    - Filter by map, player count, VAC status
+    - Returns server name, address, map, player count, VAC status
+  - `query_server_status` - Get detailed status of a specific server
+    - Lookup by IP:port address
+    - Returns full server info including OS, version, game type
+
+### Changed
+- Tool count increased from 36 to 38
+
 ## [v0.9.0] - 2025-12-12
 
 ### Added
